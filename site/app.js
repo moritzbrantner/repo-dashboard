@@ -28,6 +28,8 @@ function summaryCard(label, value, note) {
 
 function renderSummary(snapshot) {
   const summary = snapshot.summary || {};
+  const contract = summary.publicContract || {};
+  const contractValue = contract.discovered > 0 ? `${contract.verified ?? 0}/${contract.discovered}` : "—";
   const reconciliation = summary.reconciliation || {};
   const reconciliationNote = reconciliation.attempted > 0
     ? `${reconciliation.unchanged ?? 0} verified no-ops / ${reconciliation.attempted} attempts`
@@ -37,6 +39,11 @@ function renderSummary(snapshot) {
     summaryCard("Repositories", summary.total ?? snapshot.repositories.length, `${summary.stale ?? 0} stale`),
     summaryCard("Passing", percent(summary.passingRatio), `${summary.passing ?? 0} latest pipelines green`),
     summaryCard("Failing", String(summary.failing ?? 0), "latest default-branch runs"),
+    summaryCard(
+      "Public contract",
+      contractValue,
+      `${contract.measuredRepositories ?? 0} repos measured · ${contract.incomplete ?? 0} incomplete`,
+    ),
     summaryCard("Foundation", percent(summary.averageFoundationRatio), "average dogfood adoption"),
     summaryCard("Benchmarked", String(summary.benchmarked ?? 0), "benchmark evidence detected"),
     summaryCard("Work avoided", percent(reconciliation.workAvoidedRatio), reconciliationNote),
@@ -58,7 +65,14 @@ function signal(name, enabled) {
 }
 
 function searchable(repo) {
-  return [repo.name, repo.description, repo.language, repo.pipeline?.workflow, ...(repo.pipeline?.failureJobs ?? []).flatMap((job) => [job.name, ...(job.failedSteps ?? [])])]
+  return [
+    repo.name,
+    repo.description,
+    repo.language,
+    repo.pipeline?.workflow,
+    repo.publicContract?.state,
+    ...(repo.pipeline?.failureJobs ?? []).flatMap((job) => [job.name, ...(job.failedSteps ?? [])]),
+  ]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
@@ -66,8 +80,13 @@ function searchable(repo) {
 
 function riskRank(repo) {
   const pipeline = { failing: 0, attention: 1, unknown: 2, "not-configured": 3, running: 4, passing: 5 }[repo.pipeline?.state] ?? 2;
+  const contract = repo.publicContract?.state === "measured"
+    ? (repo.publicContract.unverified > 0 || repo.publicContract.incomplete > 0 ? 0 : 3)
+    : repo.publicContract?.state === "unavailable"
+      ? 1
+      : 2;
   const stale = repo.activity === "stale" ? 0 : 1;
-  return [pipeline, stale, repo.foundation?.ratio ?? 0, repo.name];
+  return [pipeline, contract, stale, repo.foundation?.ratio ?? 0, repo.name];
 }
 
 function compareTuple(a, b) {
@@ -119,6 +138,35 @@ function renderDetail(repo, target) {
   }
   if (repo.collection?.error) pipeline.append(Object.assign(document.createElement("p"), { textContent: `Collection: ${repo.collection.error}` }));
 
+  const contract = document.createElement("section");
+  contract.innerHTML = "<h3>Public contract</h3>";
+  if (repo.publicContract?.state === "measured") {
+    contract.append(
+      Object.assign(document.createElement("p"), {
+        textContent: `${repo.publicContract.verified}/${repo.publicContract.discovered} verified (${percent(repo.publicContract.verifiedRatio)})`,
+      }),
+      Object.assign(document.createElement("p"), {
+        textContent: `${repo.publicContract.unverified} unverified · ${repo.publicContract.incomplete} incomplete discovery · ${repo.publicContract.failedEvidence} failed evidence`,
+      }),
+    );
+    if (repo.publicContract.runUrl) {
+      const link = document.createElement("a");
+      link.href = repo.publicContract.runUrl;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      link.textContent = `Verification run · ${relativeDate(repo.publicContract.createdAt)}`;
+      contract.append(link);
+    }
+  } else {
+    contract.append(
+      Object.assign(document.createElement("p"), {
+        textContent: repo.publicContract?.state === "not-configured"
+          ? "Public-contract pipeline not adopted."
+          : "Public-contract pipeline exists, but no readable report summary is available yet.",
+      }),
+    );
+  }
+
   const evidence = document.createElement("section");
   evidence.innerHTML = "<h3>Performance & quality</h3>";
   const capabilityLabels = { pages: "Pages", coverage: "Coverage", benchmarks: "Benchmarks", runtimeProfiler: "Runtime profiler", moonlight: "Moonlight" };
@@ -136,7 +184,7 @@ function renderDetail(repo, target) {
     p.textContent = `Artifact: ${artifact.name}${artifact.expired ? " (expired)" : ""}`;
     evidence.append(p);
   }
-  target.replaceChildren(dogfood, pipeline, evidence);
+  target.replaceChildren(dogfood, pipeline, contract, evidence);
 }
 
 function makeRow(repo) {
@@ -158,6 +206,30 @@ function makeRow(repo) {
   const pipelineCell = template.querySelector(".pipeline-cell");
   pipelineCell.append(badge(prettyState(repo.pipeline?.state), repo.pipeline?.state));
   if (repo.pipeline?.workflow) pipelineCell.append(Object.assign(document.createElement("span"), { className: "secondary", textContent: repo.pipeline.workflow }));
+
+  const contractCell = template.querySelector(".contract-cell");
+  if (repo.publicContract?.state === "measured") {
+    contractCell.append(
+      Object.assign(document.createElement("strong"), {
+        textContent: `${repo.publicContract.verified}/${repo.publicContract.discovered}`,
+      }),
+    );
+    const contractMeter = document.createElement("div");
+    contractMeter.className = "contract-meter";
+    const contractFill = document.createElement("span");
+    contractFill.style.width = percent(repo.publicContract.verifiedRatio);
+    contractMeter.append(contractFill);
+    const note = repo.publicContract.incomplete > 0
+      ? `${repo.publicContract.incomplete} incomplete`
+      : `${repo.publicContract.unverified} unverified`;
+    contractCell.append(
+      contractMeter,
+      Object.assign(document.createElement("span"), { className: "secondary", textContent: note }),
+    );
+  } else {
+    const label = repo.publicContract?.state === "not-configured" ? "not measured" : prettyState(repo.publicContract?.state);
+    contractCell.append(Object.assign(document.createElement("span"), { className: "secondary", textContent: label }));
+  }
 
   const foundationCell = template.querySelector(".foundation-cell");
   foundationCell.append(Object.assign(document.createElement("strong"), { textContent: `${repo.foundation?.adopted ?? 0}/${repo.foundation?.total ?? 7}` }));
