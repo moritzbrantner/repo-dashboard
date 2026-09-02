@@ -33,9 +33,9 @@ test("metrics contract is whitelist-only", () => {
 
 test("fleet summary aggregates health without treating unknown as failure", () => {
   const summary = summarizeFleet([
-    { pipeline: { state: "passing" }, activity: "recent", capabilities: { benchmarks: true }, foundation: { ratio: 1 } },
-    { pipeline: { state: "failing" }, activity: "stale", capabilities: { benchmarks: false }, foundation: { ratio: 3 / 7 } },
-    { pipeline: { state: "unknown" }, activity: "active", capabilities: { benchmarks: false }, foundation: { ratio: 0 } },
+    { pipeline: { state: "passing" }, activity: "recent", capabilities: { benchmarks: true }, foundation: { ratio: 1 }, publicContract: { state: "measured", discovered: 10, verified: 8, unverified: 2, incomplete: 1 } },
+    { pipeline: { state: "failing" }, activity: "stale", capabilities: { benchmarks: false }, foundation: { ratio: 3 / 7 }, publicContract: { state: "measured", discovered: 5, verified: 5, unverified: 0, incomplete: 0 } },
+    { pipeline: { state: "unknown" }, activity: "active", capabilities: { benchmarks: false }, foundation: { ratio: 0 }, publicContract: { state: "not-configured" } },
   ]);
   assert.equal(summary.total, 3);
   assert.equal(summary.passing, 1);
@@ -43,4 +43,12 @@ test("fleet summary aggregates health without treating unknown as failure", () =
   assert.equal(summary.stale, 1);
   assert.equal(summary.benchmarked, 1);
   assert.equal(summary.passingRatio, 1 / 3);
+  assert.deepEqual(summary.publicContract, {
+    measuredRepositories: 2,
+    discovered: 15,
+    verified: 13,
+    unverified: 2,
+    incomplete: 1,
+    verifiedRatio: 13 / 15,
+  });
 });
