@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="description" content="Operational health and dogfood dashboard for the moritzbrantner repository fleet." />
+    <meta name="description" content="Operational health, public-contract verification, and dogfood dashboard for the moritzbrantner repository fleet." />
     <title>Repository Dashboard</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
@@ -14,7 +14,7 @@
         <div>
           <p class="eyebrow">Repository fleet</p>
           <h1>Operational dashboard</h1>
-          <p class="lede">CI health, foundation dogfood, quality capabilities, activity, and published performance evidence in one read-only view.</p>
+          <p class="lede">CI health, verified public contracts, foundation dogfood, quality capabilities, activity, and published performance evidence in one read-only view.</p>
         </div>
         <div class="freshness" id="freshness">Loading snapshot…</div>
       </header>
@@ -71,6 +71,7 @@
               <tr>
                 <th>Repository</th>
                 <th>Pipeline</th>
+                <th>Public contract</th>
                 <th>Foundation</th>
                 <th>Capabilities</th>
                 <th>Activity</th>
@@ -86,13 +87,14 @@
       <tr class="repo-row">
         <td class="repo-cell"></td>
         <td class="pipeline-cell"></td>
+        <td class="contract-cell"></td>
         <td class="foundation-cell"></td>
         <td class="capabilities-cell"></td>
         <td class="activity-cell"></td>
         <td class="open-cell"></td>
       </tr>
       <tr class="detail-row" hidden>
-        <td colspan="6"><div class="detail"></div></td>
+        <td colspan="7"><div class="detail"></div></td>
       </tr>
     </template>
     <script type="module" src="./app.js"></script>
