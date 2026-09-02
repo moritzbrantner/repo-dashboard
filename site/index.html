@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="description" content="Operational health and dogfood dashboard for the moritzbrantner repository fleet." />
+    <title>Repository Dashboard</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Repository fleet</p>
+          <h1>Operational dashboard</h1>
+          <p class="lede">CI health, foundation dogfood, quality capabilities, activity, and published performance evidence in one read-only view.</p>
+        </div>
+        <div class="freshness" id="freshness">Loading snapshot…</div>
+      </header>
+
+      <section class="summary" id="summary" aria-label="Fleet summary"></section>
+
+      <section class="controls" aria-label="Repository filters">
+        <label>
+          <span>Search</span>
+          <input id="search" type="search" placeholder="Repository, language, failure…" autocomplete="off" />
+        </label>
+        <label>
+          <span>Pipeline</span>
+          <select id="pipeline-filter">
+            <option value="all">All</option>
+            <option value="failing">Failing</option>
+            <option value="attention">Attention</option>
+            <option value="running">Running</option>
+            <option value="passing">Passing</option>
+            <option value="unknown">Unknown</option>
+            <option value="not-configured">No pipeline</option>
+          </select>
+        </label>
+        <label>
+          <span>Activity</span>
+          <select id="activity-filter">
+            <option value="all">All</option>
+            <option value="recent">Recent</option>
+            <option value="active">Active</option>
+            <option value="stale">Stale</option>
+            <option value="unknown">Unknown</option>
+          </select>
+        </label>
+        <label>
+          <span>Sort</span>
+          <select id="sort">
+            <option value="risk">Needs attention</option>
+            <option value="dogfood">Dogfood gap</option>
+            <option value="updated">Last push</option>
+            <option value="name">Name</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="fleet" aria-live="polite">
+        <div class="fleet-heading">
+          <h2>Repositories</h2>
+          <span id="result-count"></span>
+        </div>
+        <div id="empty" class="empty" hidden>No repositories match these filters.</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Repository</th>
+                <th>Pipeline</th>
+                <th>Foundation</th>
+                <th>Capabilities</th>
+                <th>Activity</th>
+                <th>Open</th>
+              </tr>
+            </thead>
+            <tbody id="repositories"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <template id="repo-row-template">
+      <tr class="repo-row">
+        <td class="repo-cell"></td>
+        <td class="pipeline-cell"></td>
+        <td class="foundation-cell"></td>
+        <td class="capabilities-cell"></td>
+        <td class="activity-cell"></td>
+        <td class="open-cell"></td>
+      </tr>
+      <tr class="detail-row" hidden>
+        <td colspan="6"><div class="detail"></div></td>
+      </tr>
+    </template>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
