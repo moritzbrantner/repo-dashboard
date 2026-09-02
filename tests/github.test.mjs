@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { deriveContentSignals, derivePathSignals } from "../lib/github.mjs";
+import { deriveContentSignals, derivePathSignals, parsePublicContractArtifactName } from "../lib/github.mjs";
 
 test("path detection is conservative and capability-aware", () => {
   const signals = derivePathSignals([
@@ -10,6 +10,7 @@ test("path detection is conservative and capability-aware", () => {
     "renovate.json",
     ".github/workflows/validate.yml",
     ".github/workflows/pages.yml",
+    ".github/workflows/public-contract.yml",
     "benches/query.rs",
     ".repo-dashboard/metrics.json",
   ]);
@@ -21,6 +22,7 @@ test("path detection is conservative and capability-aware", () => {
   assert.equal(signals.pages, true);
   assert.equal(signals.benchmarks, true);
   assert.equal(signals.metricsContract, true);
+  assert.equal(signals.publicContractWorkflowPath, ".github/workflows/public-contract.yml");
 });
 
 test("a generic test file is not mislabeled as a benchmark", () => {
@@ -39,4 +41,24 @@ test("content detection recognizes shared tooling by explicit names", () => {
   assert.equal(signals.codingTooling, true);
   assert.equal(signals.runtimeProfiler, true);
   assert.equal(signals.moonlight, true);
+});
+
+test("public contract artifact names expose only the report summary envelope", () => {
+  assert.deepEqual(
+    parsePublicContractArtifactName("coding-tooling-public-contract-v1-d47-vfy45-u2-i0-f0-123456-1"),
+    {
+      schemaVersion: 1,
+      discovered: 47,
+      verified: 45,
+      unverified: 2,
+      incomplete: 0,
+      failedEvidence: 0,
+      runId: 123456,
+      attempt: 1,
+      verifiedRatio: 45 / 47,
+      strictReady: false,
+    },
+  );
+  assert.equal(parsePublicContractArtifactName("coding-tooling-public-contract-v1-d47-vfy46-u2-i0-f0-123456-1"), null);
+  assert.equal(parsePublicContractArtifactName("some-other-artifact"), null);
 });
