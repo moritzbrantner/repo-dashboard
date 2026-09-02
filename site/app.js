@@ -28,6 +28,10 @@ function summaryCard(label, value, note) {
 
 function renderSummary(snapshot) {
   const summary = snapshot.summary || {};
+  const reconciliation = summary.reconciliation || {};
+  const reconciliationNote = reconciliation.attempted > 0
+    ? `${reconciliation.unchanged ?? 0} verified no-ops / ${reconciliation.attempted} attempts`
+    : "no reconciliation evidence";
   const target = $("#summary");
   target.replaceChildren(
     summaryCard("Repositories", summary.total ?? snapshot.repositories.length, `${summary.stale ?? 0} stale`),
@@ -35,6 +39,7 @@ function renderSummary(snapshot) {
     summaryCard("Failing", String(summary.failing ?? 0), "latest default-branch runs"),
     summaryCard("Foundation", percent(summary.averageFoundationRatio), "average dogfood adoption"),
     summaryCard("Benchmarked", String(summary.benchmarked ?? 0), "benchmark evidence detected"),
+    summaryCard("Work avoided", percent(reconciliation.workAvoidedRatio), reconciliationNote),
   );
 }
 
