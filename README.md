@@ -1,11 +1,12 @@
 # repo-dashboard
 
-A static operational dashboard for the `moritzbrantner` repository fleet. It answers four questions without becoming another source of truth:
+A static operational dashboard for the `moritzbrantner` repository fleet. It answers five questions without becoming another source of truth:
 
 1. **Is the repository healthy?** Latest default-branch pipeline state and failed jobs.
 2. **Does it dogfood the shared engineering landscape?** Conservative evidence for agent guidance, environment contracts, conventions, Renovate, validation, reusable workflows, and coding-tooling.
 3. **What quality/performance capabilities exist?** Pages, coverage, benchmarks, runtime-profiler, Moonlight, plus optionally published metrics.
 4. **Is work moving?** Last push, open issue/PR count, archived state, and stale/recent activity classification.
+5. **How much deterministic work is avoided?** Optional reconciliation metrics distinguish real changes from verified no-ops.
 
 The dashboard is intentionally read-only. It observes repositories; it does not edit them. Private repositories are excluded by default so a public Pages deployment cannot leak their names or metadata.
 
@@ -13,9 +14,9 @@ The dashboard is intentionally read-only. It observes repositories; it does not 
 
 - `scripts/collect.mjs` reads GitHub and writes a normalized snapshot to `site/data/repositories.json`.
 - `lib/github.mjs` contains conservative evidence collection and API handling.
-- `lib/model.mjs` owns scoring, activity classification, summaries, and snapshot validation.
+- `lib/model.mjs` owns scoring, activity classification, summaries, reconciliation efficiency, and snapshot validation.
 - `site/` is a dependency-free static UI suitable for GitHub Pages.
-- `.repo-dashboard/metrics.json` is an optional per-repository contract for benchmark/performance values that cannot be inferred safely.
+- `.repo-dashboard/metrics.json` is an optional per-repository contract for benchmark, performance, quality, coverage, and reconciliation values that cannot be inferred safely.
 
 No front-end framework or runtime dependency is required. The dashboard should remain easier to keep alive than the repositories it monitors.
 
@@ -54,7 +55,7 @@ Foundation adoption is scored over seven conservative signals:
 
 Pages, coverage, benchmarks, runtime-profiler, and Moonlight are displayed as capabilities and **do not** lower a repository's foundation score when absent.
 
-## Optional performance evidence contract
+## Optional metrics evidence contract
 
 A repository may publish `.repo-dashboard/metrics.json`:
 
@@ -74,6 +75,19 @@ A repository may publish `.repo-dashboard/metrics.json`:
   ]
 }
 ```
+
+Supported `source` values are `benchmark`, `coverage`, `performance`, `quality`, and `reconciliation`.
+
+### Reconciliation efficiency
+
+Deterministic mutators can publish cumulative operation counts using these stable metric IDs:
+
+- `reconciliation.attempted` — reconciliation operations evaluated;
+- `reconciliation.changed` — operations that applied a real state change;
+- `reconciliation.unchanged` — already-satisfied operations verified as no-ops;
+- `reconciliation.conflict` — operations that stopped because current state could not be reconciled safely.
+
+Use `unit: "operations"` and `source: "reconciliation"`. The fleet summary computes `workAvoidedRatio = reconciliation.unchanged / reconciliation.attempted`. The ratio measures verified duplicate work avoided; it is not a correctness score, and repositories that do not publish reconciliation evidence are excluded from the aggregate rather than treated as zero-efficiency.
 
 Only this small whitelist is ingested. Raw profiler output, logs, machine-local paths, and arbitrary artifact contents stay out of the dashboard snapshot.
 
