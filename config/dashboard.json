@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "owner": "moritzbrantner",
+  "staleAfterDays": 90,
+  "exclude": [],
+  "includeArchived": true,
+  "includePrivate": false,
+  "maxConcurrency": 6
+}

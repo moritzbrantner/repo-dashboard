@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-02T00:00:00.000Z",
+  "owner": "moritzbrantner",
+  "summary": {
+    "total": 0,
+    "passing": 0,
+    "failing": 0,
+    "stale": 0,
+    "benchmarked": 0,
+    "passingRatio": 0,
+    "averageFoundationRatio": 0
+  },
+  "repositories": []
+}
