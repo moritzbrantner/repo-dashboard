@@ -1,0 +1,16 @@
+{
+  "name": "repo-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "collect": "node scripts/collect.mjs",
+    "serve": "node scripts/serve.mjs",
+    "test": "node --test",
+    "validate:snapshot": "node scripts/validate-snapshot.mjs",
+    "validate": "node --check site/app.js && node --check lib/model.mjs && node --check lib/github.mjs && npm test && npm run validate:snapshot"
+  }
+}
