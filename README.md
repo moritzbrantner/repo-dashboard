@@ -1,11 +1,12 @@
 # repo-dashboard
 
-A static operational dashboard for the `moritzbrantner` repository fleet. It answers four questions without becoming another source of truth:
+A static operational dashboard for the `moritzbrantner` repository fleet. It answers five questions without becoming another source of truth:
 
 1. **Is the repository healthy?** Latest default-branch pipeline state and failed jobs.
-2. **Does it dogfood the shared engineering landscape?** Conservative evidence for agent guidance, environment contracts, conventions, Renovate, validation, reusable workflows, and coding-tooling.
-3. **What quality/performance capabilities exist?** Pages, coverage, benchmarks, runtime-profiler, Moonlight, plus optionally published metrics.
-4. **Is work moving?** Last push, open issue/PR count, archived state, and stale/recent activity classification.
+2. **Is its public contract verified?** Report-derived counts for discovered, verified, unverified, and incompletely analyzed external surfaces.
+3. **Does it dogfood the shared engineering landscape?** Conservative evidence for agent guidance, environment contracts, conventions, Renovate, validation, reusable workflows, and coding-tooling.
+4. **What quality/performance capabilities exist?** Pages, line/function coverage, benchmarks, runtime-profiler, Moonlight, plus optionally published metrics.
+5. **Is work moving?** Last push, open issue/PR count, archived state, and stale/recent activity classification.
 
 The dashboard is intentionally read-only. It observes repositories; it does not edit them. Private repositories are excluded by default so a public Pages deployment cannot leak their names or metadata.
 
@@ -16,6 +17,7 @@ The dashboard is intentionally read-only. It observes repositories; it does not 
 - `lib/model.mjs` owns scoring, activity classification, summaries, and snapshot validation.
 - `site/` is a dependency-free static UI suitable for GitHub Pages.
 - `.repo-dashboard/metrics.json` is an optional per-repository contract for benchmark/performance values that cannot be inferred safely.
+- `coding-tooling` owns public-contract discovery, evidence semantics, and enforcement; the dashboard only aggregates its emitted summary.
 
 No front-end framework or runtime dependency is required. The dashboard should remain easier to keep alive than the repositories it monitors.
 
@@ -40,6 +42,31 @@ The Pages workflow refreshes the snapshot every six hours and on manual dispatch
 
 For reliable fleet-wide collection, add a repository secret named `REPO_DASHBOARD_TOKEN`. A fine-grained token only needs read access to repository metadata, contents, and Actions for the repositories you want represented. If the secret is absent, the workflow falls back to its repository-scoped GitHub token and the collector records inaccessible evidence as unavailable rather than inventing results.
 
+## Public-contract verification
+
+A repository adopts the standardized public-contract pipeline through `reusable-workflows`. The detailed source of truth is the canonical report:
+
+```text
+.artifacts/coding-tooling/public-contract.json
+```
+
+The uploaded Actions artifact name also carries a compact summary generated from that same JSON report:
+
+```text
+coding-tooling-public-contract-v1-d47-vfy45-u2-i0-f0-<run>-<attempt>
+```
+
+The dashboard reads only this validated summary envelope for fleet statistics; it does not download ZIP contents or reconstruct public-contract semantics. In the example above, 47 surfaces were discovered, 45 verified, 2 unverified, 0 had incomplete discovery, and 0 verifier mappings failed.
+
+States remain explicit:
+
+- `measured`: a valid current report-derived summary artifact exists;
+- `unavailable`: a public-contract workflow exists but no readable non-expired summary is available;
+- `not-configured`: no public-contract workflow is detected;
+- `unknown`: repository collection itself failed.
+
+Incomplete discovery is never counted as verified merely because no finding was emitted. Ordinary line/function coverage remains a separate secondary capability.
+
 ## Dogfood model
 
 Foundation adoption is scored over seven conservative signals:
@@ -52,7 +79,7 @@ Foundation adoption is scored over seven conservative signals:
 - reusable-workflows
 - coding-tooling
 
-Pages, coverage, benchmarks, runtime-profiler, and Moonlight are displayed as capabilities and **do not** lower a repository's foundation score when absent.
+Pages, coverage, benchmarks, runtime-profiler, Moonlight, and public-contract verification are displayed separately and **do not** alter the foundation score.
 
 ## Optional performance evidence contract
 
@@ -79,4 +106,4 @@ Only this small whitelist is ingested. Raw profiler output, logs, machine-local 
 
 ## Next extensions
 
-The v1 model intentionally leaves room for historical snapshots, trend charts, GitHub Pages/Lighthouse health, coverage deltas, release freshness, dependency drift, and deeper benchmark provenance. Those should be added only when the underlying evidence is stable and machine-readable.
+The model intentionally leaves room for public-contract history and deltas, GitHub Pages/Lighthouse health, release freshness, dependency drift, and deeper benchmark provenance. Public-contract `protect-new` should be surfaced once `coding-tooling` can produce authoritative base-versus-head comparison evidence; the dashboard must not invent that comparison itself.
