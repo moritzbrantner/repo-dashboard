@@ -1,0 +1,53 @@
+name: Build Actionable Fleet Queue
+
+on:
+  push:
+    branches:
+      - feat/actionable-fleet-queue
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply focused patch
+        run: python3 scripts/patch-actionable-fleet-queue.py
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate repository
+        run: npm run validate
+
+      - name: Check whitespace
+        run: git diff --check
+
+      - name: Commit durable slice and remove one-shot scaffolding
+        run: |
+          set -euo pipefail
+          rm scripts/patch-actionable-fleet-queue.py
+          rm .github/workflows/build-actionable-fleet-queue.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add README.md lib/model.mjs lib/github.mjs tests/model.test.mjs site/app.js site/index.html site/styles.css scripts/patch-actionable-fleet-queue.py .github/workflows/build-actionable-fleet-queue.yml
+          git diff --cached --exit-code && {
+            echo 'Expected actionable fleet queue changes, but no durable diff remains.' >&2
+            exit 1
+          }
+          git commit -m 'feat: turn fleet evidence into next actions'
+          git push origin HEAD:feat/actionable-fleet-queue
