@@ -14,12 +14,12 @@
         <div>
           <p class="eyebrow">Repository fleet</p>
           <h1>Operational dashboard</h1>
-          <p class="lede">CI health, verified public contracts, foundation dogfood, quality capabilities, activity, reconciliation efficiency, and published performance evidence in one read-only view.</p>
+          <p class="lede">A read-only fleet queue that turns CI, foundation, public-contract, activity, and performance evidence into one deterministic next action per repository.</p>
         </div>
         <div class="freshness" id="freshness">Loading snapshot…</div>
       </header>
 
-      <section class="summary" id="summary" aria-label="Fleet summary"></section>
+      <section class="summary" id="summary" aria-label="Next fleet action"></section>
 
       <section class="controls" aria-label="Repository filters">
         <label>
@@ -49,9 +49,21 @@
           </select>
         </label>
         <label>
+          <span>Action</span>
+          <select id="action-filter">
+            <option value="all">All</option>
+            <option value="pipeline">Pipeline</option>
+            <option value="foundation">Foundation</option>
+            <option value="contract">Public contract</option>
+            <option value="evidence">Evidence</option>
+            <option value="maintenance">Maintenance</option>
+            <option value="none">No immediate action</option>
+          </select>
+        </label>
+        <label>
           <span>Sort</span>
           <select id="sort">
-            <option value="risk">Needs attention</option>
+            <option value="action">Next action</option>
             <option value="dogfood">Dogfood gap</option>
             <option value="updated">Last push</option>
             <option value="name">Name</option>
@@ -70,12 +82,12 @@
             <thead>
               <tr>
                 <th>Repository</th>
+                <th>Next action</th>
                 <th>Pipeline</th>
-                <th>Public contract</th>
                 <th>Foundation</th>
+                <th>Public contract</th>
                 <th>Capabilities</th>
                 <th>Activity</th>
-                <th>Open</th>
               </tr>
             </thead>
             <tbody id="repositories"></tbody>
@@ -86,12 +98,12 @@
     <template id="repo-row-template">
       <tr class="repo-row">
         <td class="repo-cell"></td>
+        <td class="action-cell"></td>
         <td class="pipeline-cell"></td>
-        <td class="contract-cell"></td>
         <td class="foundation-cell"></td>
+        <td class="contract-cell"></td>
         <td class="capabilities-cell"></td>
         <td class="activity-cell"></td>
-        <td class="open-cell"></td>
       </tr>
       <tr class="detail-row" hidden>
         <td colspan="7"><div class="detail"></div></td>

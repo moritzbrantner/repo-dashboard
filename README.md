@@ -1,21 +1,22 @@
 # repo-dashboard
 
-A static operational dashboard for the `moritzbrantner` repository fleet. It answers six questions without becoming another source of truth:
+A static operational dashboard for the `moritzbrantner` repository fleet. It answers seven questions without becoming another source of truth:
 
 1. **Is the repository healthy?** Latest default-branch pipeline state and failed jobs.
-2. **Is its public contract verified?** Report-derived counts for discovered, verified, unverified, and incompletely analyzed external surfaces.
+2. **Is its public contract verified?** Report-derived discovered, verified, unverified, and incompletely analyzed external surfaces.
 3. **Does it dogfood the shared engineering landscape?** Conservative evidence for agent guidance, environment contracts, conventions, Renovate, validation, reusable workflows, and coding-tooling.
-4. **What quality/performance capabilities exist?** Pages, coverage, benchmarks, runtime-profiler, Moonlight, plus optionally published metrics.
-5. **Is work moving?** Last push, open issue/PR count, archived state, and stale/recent activity classification.
-6. **How much deterministic work is avoided?** Optional reconciliation metrics distinguish real changes from verified no-ops.
+4. **What should happen next?** One deterministic remediation derived from evidence, ordered pipeline → foundation → public contract → stale ownership review.
+5. **What quality/performance capabilities exist?** Pages, coverage, benchmarks, runtime-profiler, Moonlight, plus optionally published metrics.
+6. **Is work moving?** Last push, archived state, and stale/recent activity classification.
+7. **How much deterministic work is avoided?** Optional reconciliation metrics distinguish real changes from verified no-ops.
 
-The dashboard is intentionally read-only. It observes repositories; it does not edit them. Private repositories are excluded by default so a public Pages deployment cannot leak their names or metadata.
+The dashboard is intentionally read-only. It observes repositories; it does not edit them. Private repositories are excluded by default so a public Pages deployment cannot leak their names or metadata. The UI leads with the next evidence-backed action instead of fleet KPI/count cards; raw measurements stay attached to the repository evidence where they can drive an actual decision.
 
 ## Architecture
 
 - `scripts/collect.mjs` reads GitHub and writes a normalized snapshot to `site/data/repositories.json`.
 - `lib/github.mjs` contains conservative evidence collection and API handling.
-- `lib/model.mjs` owns scoring, activity classification, summaries, reconciliation efficiency, and snapshot validation.
+- `lib/model.mjs` owns scoring, activity classification, deterministic next-action derivation, summaries, reconciliation efficiency, and snapshot validation.
 - `site/` is a dependency-free static UI suitable for GitHub Pages.
 - `.repo-dashboard/metrics.json` is an optional per-repository contract for benchmark, performance, quality, coverage, and reconciliation values that cannot be inferred safely.
 - `coding-tooling` owns public-contract discovery, evidence semantics, and enforcement; this dashboard only aggregates its emitted summary.

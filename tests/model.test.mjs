@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classifyActivity, pipelineState, sanitizeMetricsDocument, scoreFoundation, summarizeFleet } from "../lib/model.mjs";
+import { classifyActivity, deriveRepositoryAction, pipelineState, sanitizeMetricsDocument, scoreFoundation, summarizeFleet } from "../lib/model.mjs";
 
 test("foundation score only counts universal dogfood signals", () => {
   const result = scoreFoundation({ agents: true, environment: true, conventions: true, renovate: true, validation: false, reusableWorkflows: false, codingTooling: true, benchmarks: true });
@@ -69,4 +69,96 @@ test("fleet summary aggregates health and public contracts without treating unkn
     incomplete: 1,
     verifiedRatio: 13 / 15,
   });
+});
+
+
+test("repository action repairs failing validation before lower-priority gaps", () => {
+  const action = deriveRepositoryAction({
+    url: "https://github.com/example/repo",
+    dogfood: { validation: true, environment: false },
+    collection: { treeAvailable: true },
+    pipeline: {
+      state: "failing",
+      url: "https://github.com/example/repo/actions/runs/1",
+      failureJobs: [{ name: "Validate", failedSteps: ["Run tests"] }],
+    },
+    publicContract: { state: "measured", unverified: 3 },
+  });
+  assert.deepEqual(action, {
+    kind: "pipeline",
+    priority: 1,
+    id: "repair-pipeline",
+    label: "Repair Validate",
+    detail: "The latest default-branch run failed at Run tests.",
+    href: "https://github.com/example/repo/actions/runs/1",
+  });
+});
+
+test("repository action advances foundation adoption one deterministic gap at a time", () => {
+  const action = deriveRepositoryAction({
+    url: "https://github.com/example/repo",
+    collection: { treeAvailable: true },
+    pipeline: { state: "passing" },
+    dogfood: {
+      validation: true,
+      environment: false,
+      conventions: false,
+      renovate: false,
+      reusableWorkflows: true,
+      codingTooling: true,
+      agents: true,
+    },
+    publicContract: { state: "not-configured" },
+    activity: "recent",
+  });
+  assert.equal(action.id, "adopt-environment");
+  assert.equal(action.kind, "foundation");
+});
+
+test("repository action preserves incomplete public-contract evidence after foundation completion", () => {
+  const action = deriveRepositoryAction({
+    url: "https://github.com/example/repo",
+    collection: { treeAvailable: true },
+    pipeline: { state: "passing" },
+    dogfood: {
+      validation: true,
+      environment: true,
+      conventions: true,
+      renovate: true,
+      reusableWorkflows: true,
+      codingTooling: true,
+      agents: true,
+    },
+    publicContract: {
+      state: "measured",
+      failedEvidence: 0,
+      incomplete: 2,
+      unverified: 0,
+      runUrl: "https://github.com/example/repo/actions/runs/2",
+    },
+    activity: "recent",
+  });
+  assert.equal(action.id, "complete-public-contract-discovery");
+  assert.equal(action.kind, "contract");
+});
+
+test("repository action does not invent work when current evidence is healthy", () => {
+  const action = deriveRepositoryAction({
+    url: "https://github.com/example/repo",
+    collection: { treeAvailable: true },
+    pipeline: { state: "passing" },
+    dogfood: {
+      validation: true,
+      environment: true,
+      conventions: true,
+      renovate: true,
+      reusableWorkflows: true,
+      codingTooling: true,
+      agents: true,
+    },
+    publicContract: { state: "not-configured" },
+    activity: "recent",
+  });
+  assert.equal(action.id, "none");
+  assert.equal(action.priority, 100);
 });

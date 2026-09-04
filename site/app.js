@@ -1,4 +1,4 @@
-const state = { snapshot: null, query: "", pipeline: "all", activity: "all", sort: "risk" };
+const state = { snapshot: null, query: "", pipeline: "all", activity: "all", action: "all", sort: "action" };
 const $ = (selector) => document.querySelector(selector);
 const percent = (value) => `${Math.round((value || 0) * 100)}%`;
 const prettyState = (value) => (value || "unknown").replaceAll("-", " ");
@@ -16,38 +16,52 @@ function relativeDate(value) {
   return `${Math.floor(months / 12)} yr ago`;
 }
 
-function summaryCard(label, value, note) {
-  const article = document.createElement("article");
-  article.className = "summary-card";
-  article.innerHTML = `<span class="summary-label"></span><strong class="summary-value"></strong><span class="summary-note"></span>`;
-  article.querySelector(".summary-label").textContent = label;
-  article.querySelector(".summary-value").textContent = value;
-  article.querySelector(".summary-note").textContent = note;
-  return article;
-}
-
-function renderSummary(snapshot) {
-  const summary = snapshot.summary || {};
-  const contract = summary.publicContract || {};
-  const contractValue = contract.discovered > 0 ? `${contract.verified ?? 0}/${contract.discovered}` : "—";
-  const reconciliation = summary.reconciliation || {};
-  const reconciliationNote = reconciliation.attempted > 0
-    ? `${reconciliation.unchanged ?? 0} verified no-ops / ${reconciliation.attempted} attempts`
-    : "no reconciliation evidence";
+function renderActionFocus(snapshot) {
   const target = $("#summary");
-  target.replaceChildren(
-    summaryCard("Repositories", summary.total ?? snapshot.repositories.length, `${summary.stale ?? 0} stale`),
-    summaryCard("Passing", percent(summary.passingRatio), `${summary.passing ?? 0} latest pipelines green`),
-    summaryCard("Failing", String(summary.failing ?? 0), "latest default-branch runs"),
-    summaryCard(
-      "Public contract",
-      contractValue,
-      `${contract.measuredRepositories ?? 0} repos measured · ${contract.incomplete ?? 0} incomplete`,
-    ),
-    summaryCard("Foundation", percent(summary.averageFoundationRatio), "average dogfood adoption"),
-    summaryCard("Benchmarked", String(summary.benchmarked ?? 0), "benchmark evidence detected"),
-    summaryCard("Work avoided", percent(reconciliation.workAvoidedRatio), reconciliationNote),
-  );
+  const candidates = [...snapshot.repositories]
+    .filter((repo) => repo.action?.id && repo.action.id !== "none")
+    .sort((a, b) => (a.action.priority ?? 100) - (b.action.priority ?? 100) || a.name.localeCompare(b.name));
+
+  const article = document.createElement("article");
+  article.className = "action-focus";
+  const copy = document.createElement("div");
+  copy.className = "action-focus-copy";
+  const kicker = document.createElement("span");
+  kicker.className = "action-kicker";
+  kicker.textContent = "Next fleet action";
+  const title = document.createElement("h2");
+  const detail = document.createElement("p");
+  detail.className = "action-detail";
+  copy.append(kicker, title, detail);
+
+  const top = candidates[0];
+  if (!top) {
+    title.textContent = "No immediate remediation from the current snapshot";
+    detail.textContent = "The queue stays empty rather than inventing work when deterministic evidence exposes no higher-priority gap.";
+    article.append(copy);
+    target.replaceChildren(article);
+    return;
+  }
+
+  const repoLink = document.createElement("a");
+  repoLink.href = top.url;
+  repoLink.target = "_blank";
+  repoLink.rel = "noreferrer";
+  repoLink.textContent = top.name;
+  title.append(repoLink, document.createTextNode(` — ${top.action.label}`));
+  detail.textContent = top.action.detail;
+  article.append(copy);
+
+  if (top.action.href) {
+    const evidenceLink = document.createElement("a");
+    evidenceLink.className = "action-evidence-link";
+    evidenceLink.href = top.action.href;
+    evidenceLink.target = "_blank";
+    evidenceLink.rel = "noreferrer";
+    evidenceLink.textContent = "Open evidence";
+    article.append(evidenceLink);
+  }
+  target.replaceChildren(article);
 }
 
 function badge(text, className = "unknown") {
@@ -71,6 +85,9 @@ function searchable(repo) {
     repo.language,
     repo.pipeline?.workflow,
     repo.publicContract?.state,
+    repo.action?.label,
+    repo.action?.detail,
+    repo.action?.kind,
     ...(repo.pipeline?.failureJobs ?? []).flatMap((job) => [job.name, ...(job.failedSteps ?? [])]),
   ]
     .filter(Boolean)
@@ -86,7 +103,7 @@ function riskRank(repo) {
       ? 1
       : 2;
   const stale = repo.activity === "stale" ? 0 : 1;
-  return [pipeline, contract, stale, repo.foundation?.ratio ?? 0, repo.name];
+  return [repo.action?.priority ?? 100, pipeline, contract, stale, repo.foundation?.ratio ?? 0, repo.name];
 }
 
 function compareTuple(a, b) {
@@ -102,7 +119,8 @@ function filteredRepositories() {
   const repos = state.snapshot.repositories.filter((repo) =>
     (!q || searchable(repo).includes(q)) &&
     (state.pipeline === "all" || repo.pipeline?.state === state.pipeline) &&
-    (state.activity === "all" || repo.activity === state.activity)
+    (state.activity === "all" || repo.activity === state.activity) &&
+    (state.action === "all" || repo.action?.kind === state.action)
   );
   return repos.sort((a, b) => {
     if (state.sort === "name") return a.name.localeCompare(b.name);
@@ -113,6 +131,25 @@ function filteredRepositories() {
 }
 
 function renderDetail(repo, target) {
+  const nextAction = document.createElement("section");
+  nextAction.innerHTML = "<h3>Next action</h3>";
+  const actionTitle = document.createElement("p");
+  const actionStrong = document.createElement("strong");
+  actionStrong.textContent = repo.action?.label ?? "Action evidence unavailable";
+  actionTitle.append(actionStrong);
+  nextAction.append(actionTitle);
+  if (repo.action?.detail) {
+    nextAction.append(Object.assign(document.createElement("p"), { textContent: repo.action.detail }));
+  }
+  if (repo.action?.href && repo.action.id !== "none") {
+    const actionLink = document.createElement("a");
+    actionLink.href = repo.action.href;
+    actionLink.target = "_blank";
+    actionLink.rel = "noreferrer";
+    actionLink.textContent = "Open supporting evidence";
+    nextAction.append(actionLink);
+  }
+
   const dogfood = document.createElement("section");
   dogfood.innerHTML = "<h3>Foundation evidence</h3>";
   const labels = { agents: "agents", environment: "environment", conventions: "conventions", renovate: "renovate", validation: "validation", reusableWorkflows: "reusable workflows", codingTooling: "coding-tooling" };
@@ -184,7 +221,7 @@ function renderDetail(repo, target) {
     p.textContent = `Artifact: ${artifact.name}${artifact.expired ? " (expired)" : ""}`;
     evidence.append(p);
   }
-  target.replaceChildren(dogfood, pipeline, contract, evidence);
+  target.replaceChildren(nextAction, dogfood, pipeline, contract, evidence);
 }
 
 function makeRow(repo) {
@@ -202,6 +239,19 @@ function makeRow(repo) {
   repoCell.append(link);
   if (repo.description) repoCell.append(Object.assign(document.createElement("span"), { className: "repo-description", textContent: repo.description }));
   if (repo.language) repoCell.append(Object.assign(document.createElement("span"), { className: "secondary", textContent: repo.language }));
+
+  const actionCell = template.querySelector(".action-cell");
+  const action = repo.action ?? { kind: "evidence", id: "unavailable", label: "Action evidence unavailable" };
+  const actionLabel = action.href && action.id !== "none" ? document.createElement("a") : document.createElement("strong");
+  actionLabel.textContent = action.label;
+  if (actionLabel instanceof HTMLAnchorElement) {
+    actionLabel.href = action.href;
+    actionLabel.target = "_blank";
+    actionLabel.rel = "noreferrer";
+    actionLabel.addEventListener("click", (event) => event.stopPropagation());
+  }
+  actionCell.append(actionLabel);
+  actionCell.append(Object.assign(document.createElement("span"), { className: "secondary", textContent: prettyState(action.kind) }));
 
   const pipelineCell = template.querySelector(".pipeline-cell");
   pipelineCell.append(badge(prettyState(repo.pipeline?.state), repo.pipeline?.state));
@@ -249,8 +299,6 @@ function makeRow(repo) {
   const activityCell = template.querySelector(".activity-cell");
   activityCell.append(badge(repo.activity, repo.activity));
   activityCell.append(Object.assign(document.createElement("span"), { className: "secondary", textContent: relativeDate(repo.pushedAt) }));
-  template.querySelector(".open-cell").textContent = String(repo.openIssuesAndPullRequests ?? 0);
-
   primary.tabIndex = 0;
   primary.setAttribute("aria-expanded", "false");
   const toggle = () => {
@@ -282,6 +330,7 @@ function bindControls() {
   $("#search").addEventListener("input", (event) => { state.query = event.target.value; renderRepositories(); });
   $("#pipeline-filter").addEventListener("change", (event) => { state.pipeline = event.target.value; renderRepositories(); });
   $("#activity-filter").addEventListener("change", (event) => { state.activity = event.target.value; renderRepositories(); });
+  $("#action-filter").addEventListener("change", (event) => { state.action = event.target.value; renderRepositories(); });
   $("#sort").addEventListener("change", (event) => { state.sort = event.target.value; renderRepositories(); });
 }
 
@@ -290,7 +339,7 @@ async function main() {
     const response = await fetch(`./data/repositories.json?ts=${Date.now()}`, { cache: "no-store" });
     if (!response.ok) throw new Error(`snapshot HTTP ${response.status}`);
     state.snapshot = await response.json();
-    renderSummary(state.snapshot);
+    renderActionFocus(state.snapshot);
     $("#freshness").textContent = `Snapshot ${relativeDate(state.snapshot.generatedAt)} · ${new Date(state.snapshot.generatedAt).toLocaleString()}`;
     bindControls();
     renderRepositories();
