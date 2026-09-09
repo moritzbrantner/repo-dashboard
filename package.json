@@ -12,6 +12,6 @@
     "test": "node --test",
     "validate:landscape": "node scripts/validate-landscape.mjs",
     "validate:snapshot": "node scripts/validate-snapshot.mjs",
-    "validate": "node --check site/app.js && node --check lib/model.mjs && node --check lib/github.mjs && node --check lib/landscape.mjs && npm run validate:landscape && npm test && npm run validate:snapshot"
+    "validate": "node --check site/app.js && node --check lib/model.mjs && node --check lib/github.mjs && node --check lib/repository-metadata.mjs && node --check lib/landscape.mjs && npm run validate:landscape && npm test && npm run validate:snapshot"
   }
 }
