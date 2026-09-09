@@ -87,7 +87,7 @@
     "file-sharing": { "tier": "product", "maturity": "experiment" },
     "flat-stories": { "tier": "product", "maturity": "proving" },
     "geo-analysis": { "tier": "shared-platform", "maturity": "proving" },
-    "graph-editor": { "tier": "product", "maturity": "proving" },
+    "graph-editor": { "tier": "shared-platform", "maturity": "proving" },
     "historical-source-atlas": { "tier": "product", "maturity": "proving" },
     "history-to-md": { "tier": "product", "maturity": "maintenance" },
     "layer-editor": { "tier": "product", "maturity": "proving" },
@@ -111,7 +111,7 @@
     "platform-upgrader": { "tier": "foundation", "maturity": "reusable" },
     "react-render-budget": { "tier": "foundation", "maturity": "reusable" },
     "rect": { "tier": "shared-platform", "maturity": "proving" },
-    "repo-dashboard": { "tier": "shared-platform", "maturity": "proving" },
+    "repo-dashboard": { "tier": "product", "maturity": "proving" },
     "reusable-workflows": { "tier": "foundation", "maturity": "stable" },
     "runtime-profiler": { "tier": "foundation", "maturity": "reusable" },
     "rust-kernels": { "tier": "foundation", "maturity": "reusable" }
