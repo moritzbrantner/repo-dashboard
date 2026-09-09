@@ -79,17 +79,17 @@ test("dependency architecture is sanitized fail-closed", () => {
   assert.equal(mismatch.state, "invalid");
 });
 
-test("enrichment builds dependency edges and keeps unregistered repositories explicit", async () => {
+test("enrichment builds dependency edges independently from lifecycle registration", async () => {
   const registry = makeRegistry({
     alpha: { tier: "shared-platform", maturity: "reusable" },
     base: { tier: "foundation", maturity: "stable" },
   });
   const client = {
     async textFile(_owner, repository) {
-      if (repository !== "alpha") return null;
+      if (!["alpha", "unknown"].includes(repository)) return null;
       return JSON.stringify({
         schemaVersion: 1,
-        repository: { name: "example/alpha", layer: "domain" },
+        repository: { name: `example/${repository}`, layer: "domain" },
         dependencies: [
           { repository: "example/base", layer: "foundation", relation: "foundation" },
         ],
@@ -107,6 +107,13 @@ test("enrichment builds dependency edges and keeps unregistered repositories exp
   assert.deepEqual(result.landscape.graph.edges, [
     {
       from: "alpha",
+      to: "base",
+      type: "dependency",
+      relation: "foundation",
+      targetArchitectureLayer: "foundation",
+    },
+    {
+      from: "unknown",
       to: "base",
       type: "dependency",
       relation: "foundation",
