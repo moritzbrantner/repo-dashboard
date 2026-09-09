@@ -7,6 +7,7 @@ import {
   sanitizeDependencyArchitecture,
   validateLandscapeRegistry,
 } from "../lib/landscape.mjs";
+import { parseRepositoryMetadata } from "../lib/repository-metadata.mjs";
 
 function makeRegistry(repositories = { alpha: { tier: "foundation", maturity: "proving" } }) {
   return {
@@ -27,6 +28,7 @@ function makeRepo(name) {
     name,
     url: `https://github.com/example/${name}`,
     defaultBranch: "main",
+    capabilities: { pages: name === "alpha" },
     collection: { treeAvailable: true },
     action: {
       kind: "none",
@@ -79,28 +81,58 @@ test("dependency architecture is sanitized fail-closed", () => {
   assert.equal(mismatch.state, "invalid");
 });
 
-test("enrichment builds dependency edges independently from lifecycle registration", async () => {
+test("repository metadata follows the coding-tooling lifecycle contract", () => {
+  const result = parseRepositoryMetadata(
+    `schema_version = 1\nid = "example/alpha"\nkind = "library"\nstatus = "active"\nsummary = "Reusable alpha."\ndepends_on = ["example/base"]\nconsumed_by = ["example/consumer"]\nsupersedes = []\nreplaced_by = []\n`,
+    "example",
+    "alpha",
+  );
+
+  assert.deepEqual(result, {
+    state: "declared",
+    kind: "library",
+    status: "active",
+    summary: "Reusable alpha.",
+    dependsOn: ["example/base"],
+    consumedBy: ["example/consumer"],
+    supersedes: [],
+    replacedBy: [],
+  });
+  assert.equal(parseRepositoryMetadata(
+    `schema_version = 1\nid = "example/wrong"\nkind = "library"\nstatus = "active"\n`,
+    "example",
+    "alpha",
+  ).state, "invalid");
+});
+
+test("enrichment combines architecture and repository-owned lifecycle relations", async () => {
   const registry = makeRegistry({
     alpha: { tier: "shared-platform", maturity: "reusable" },
     base: { tier: "foundation", maturity: "stable" },
+    consumer: { tier: "product", maturity: "proving" },
   });
   const client = {
-    async textFile(_owner, repository) {
-      if (!["alpha", "unknown"].includes(repository)) return null;
-      return JSON.stringify({
-        schemaVersion: 1,
-        repository: { name: `example/${repository}`, layer: "domain" },
-        dependencies: [
-          { repository: "example/base", layer: "foundation", relation: "foundation" },
-        ],
-      });
+    async textFile(_owner, repository, path) {
+      if (path === ".coding-tooling.dependencies.json" && ["alpha", "unknown"].includes(repository)) {
+        return JSON.stringify({
+          schemaVersion: 1,
+          repository: { name: `example/${repository}`, layer: "domain" },
+          dependencies: [
+            { repository: "example/base", layer: "foundation", relation: "foundation" },
+          ],
+        });
+      }
+      if (path === ".repository.toml" && repository === "alpha") {
+        return `schema_version = 1\nid = "example/alpha"\nkind = "library"\nstatus = "active"\nsummary = "Reusable alpha."\ndepends_on = ["example/base"]\nconsumed_by = ["example/consumer"]\nsupersedes = []\nreplaced_by = []\n`;
+      }
+      return null;
     },
   };
 
   const result = await enrichLandscape(
     client,
     { owner: "example", maxConcurrency: 2 },
-    [makeRepo("alpha"), makeRepo("base"), makeRepo("unknown")],
+    [makeRepo("alpha"), makeRepo("base"), makeRepo("consumer"), makeRepo("unknown")],
     registry,
   );
 
@@ -113,6 +145,18 @@ test("enrichment builds dependency edges independently from lifecycle registrati
       targetArchitectureLayer: "foundation",
     },
     {
+      from: "alpha",
+      to: "base",
+      type: "repository-dependency",
+      relation: "depends-on",
+    },
+    {
+      from: "consumer",
+      to: "alpha",
+      type: "declared-consumer",
+      relation: "consumes",
+    },
+    {
       from: "unknown",
       to: "base",
       type: "dependency",
@@ -120,8 +164,11 @@ test("enrichment builds dependency edges independently from lifecycle registrati
       targetArchitectureLayer: "foundation",
     },
   ]);
-  assert.equal(result.landscape.summary.registered, 2);
+  assert.equal(result.landscape.summary.registered, 3);
   assert.equal(result.landscape.summary.unregistered, 1);
+  assert.equal(result.landscape.summary.repositoryMetadata.declared, 1);
+  assert.equal(result.landscape.graph.nodes.find((node) => node.name === "alpha").pages, true);
+  assert.equal(result.landscape.graph.nodes.find((node) => node.name === "alpha").operationalKind, "library");
   assert.equal(
     result.repositories.find((repo) => repo.name === "unknown").action.id,
     "classify-repository",
@@ -139,9 +186,14 @@ test("higher-priority repository actions are preserved during landscape enrichme
     detail: "Validation is failing.",
     href: repo.url,
   };
-  const client = { async textFile() { return "not-json"; } };
+  const client = {
+    async textFile(_owner, _repository, path) {
+      return path === ".coding-tooling.dependencies.json" ? "not-json" : "not-valid-toml";
+    },
+  };
 
   const result = await enrichLandscape(client, { owner: "example" }, [repo], registry);
   assert.equal(result.repositories[0].landscape.dependencyArchitecture.state, "invalid");
+  assert.equal(result.repositories[0].landscape.repositoryMetadata.state, "invalid");
   assert.equal(result.repositories[0].action.id, "repair-pipeline");
 });
