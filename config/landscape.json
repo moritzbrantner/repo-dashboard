@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "owner": "moritzbrantner",
+  "tierDefinitions": {
+    "foundation": {
+      "description": "Low-level contracts, deterministic tooling, and infrastructure intended to support many repositories.",
+      "expectations": [
+        "Treat compatibility changes as deliberate contract changes.",
+        "Require deterministic validation before relying on the repository broadly.",
+        "Require real consumer evidence before promotion to reusable or stable maturity."
+      ]
+    },
+    "shared-platform": {
+      "description": "Reusable domain or platform capabilities consumed by multiple products, tools, or templates.",
+      "expectations": [
+        "Keep ownership boundaries explicit and avoid product-specific behavior in shared APIs.",
+        "Validate representative consumers for material contract changes.",
+        "Prefer one canonical implementation over parallel local copies."
+      ]
+    },
+    "product": {
+      "description": "Vertical user-facing application, service, or specialized tool that composes shared foundations.",
+      "expectations": [
+        "Optimize for complete user-facing behavior rather than horizontal extraction.",
+        "Reuse shared foundations where they are proven instead of creating local alternatives.",
+        "Keep end-to-end acceptance evidence close to the product behavior."
+      ]
+    },
+    "lab": {
+      "description": "Experimental proving ground used to learn before promoting a capability into a durable owner.",
+      "expectations": [
+        "Allow rapid change without promising compatibility.",
+        "Keep experiments isolated from stable consumers until promotion is explicit.",
+        "Record the intended promotion or retirement decision when evidence is sufficient."
+      ]
+    },
+    "template": {
+      "description": "Canonical starter or reference repository whose contract is the generated consumer experience.",
+      "expectations": [
+        "Validate generated or representative consumers rather than only the template repository itself.",
+        "Keep toolchain and migration intent explicit.",
+        "Prefer shared packages and reusable workflows over copied implementation logic."
+      ]
+    }
+  },
+  "maturityDefinitions": {
+    "experiment": {
+      "description": "A spike or early implementation whose contract may change freely.",
+      "promotionEvidence": "A concrete use case and a clear owner are required before promotion."
+    },
+    "proving": {
+      "description": "A real use case exists and the repository is gathering evidence about the right contract.",
+      "promotionEvidence": "Promote only after repeated use demonstrates that the boundary is durable."
+    },
+    "reusable": {
+      "description": "The repository has demonstrated reuse and is expected to serve multiple real consumers.",
+      "promotionEvidence": "At least two genuine consumers or equivalent independently verified reuse should exist."
+    },
+    "stable": {
+      "description": "The repository exposes a deliberately supported contract with strong deterministic and consumer evidence.",
+      "promotionEvidence": "Compatibility discipline, authoritative validation, and representative consumer checks are required."
+    },
+    "maintenance": {
+      "description": "Feature growth is intentionally limited while compatibility, security, consolidation, or retirement is managed.",
+      "promotionEvidence": "A repository leaves maintenance only through an explicit renewed product or platform decision."
+    }
+  },
+  "repositories": {
+    "3d-lab": { "tier": "lab", "maturity": "proving" },
+    "audio-analysis": { "tier": "shared-platform", "maturity": "reusable" },
+    "benedict-browser": { "tier": "product", "maturity": "proving" },
+    "card-board-hybrid": { "tier": "product", "maturity": "proving" },
+    "card-game-template": { "tier": "template", "maturity": "proving" },
+    "charts": { "tier": "shared-platform", "maturity": "reusable" },
+    "coding-agent-conventions": { "tier": "foundation", "maturity": "stable" },
+    "coding-tooling": { "tier": "foundation", "maturity": "stable" },
+    "collision-lab": { "tier": "lab", "maturity": "proving" },
+    "compiler-lab": { "tier": "lab", "maturity": "experiment" },
+    "cqrs-foundation": { "tier": "foundation", "maturity": "proving" },
+    "crdt-lab": { "tier": "lab", "maturity": "proving" },
+    "diagrams": { "tier": "shared-platform", "maturity": "reusable" },
+    "dirbase": { "tier": "shared-platform", "maturity": "reusable" },
+    "dotnet-template": { "tier": "template", "maturity": "reusable" },
+    "ecs-lab": { "tier": "lab", "maturity": "proving" },
+    "editor-core": { "tier": "shared-platform", "maturity": "reusable" },
+    "expo-template": { "tier": "template", "maturity": "reusable" },
+    "file-sharing": { "tier": "product", "maturity": "experiment" },
+    "flat-stories": { "tier": "product", "maturity": "proving" },
+    "geo-analysis": { "tier": "shared-platform", "maturity": "proving" },
+    "graph-editor": { "tier": "shared-platform", "maturity": "proving" },
+    "historical-source-atlas": { "tier": "product", "maturity": "proving" },
+    "history-to-md": { "tier": "product", "maturity": "maintenance" },
+    "layer-editor": { "tier": "product", "maturity": "proving" },
+    "layout-lab": { "tier": "lab", "maturity": "proving" },
+    "lingbot-map": { "tier": "product", "maturity": "proving" },
+    "maps": { "tier": "product", "maturity": "proving" },
+    "media-player": { "tier": "product", "maturity": "proving" },
+    "media-similarity": { "tier": "shared-platform", "maturity": "reusable" },
+    "medieval": { "tier": "product", "maturity": "proving" },
+    "mlt-xml": { "tier": "shared-platform", "maturity": "maintenance" },
+    "moenarch-foundation": { "tier": "foundation", "maturity": "reusable" },
+    "moenarch-linux": { "tier": "product", "maturity": "proving" },
+    "moonlight": { "tier": "foundation", "maturity": "proving" },
+    "multiplayer-setup-service": { "tier": "shared-platform", "maturity": "proving" },
+    "native-whisperx": { "tier": "shared-platform", "maturity": "reusable" },
+    "next-template": { "tier": "template", "maturity": "reusable" },
+    "nlp-stack": { "tier": "shared-platform", "maturity": "reusable" },
+    "obkv": { "tier": "shared-platform", "maturity": "maintenance" },
+    "philosophy-lab": { "tier": "lab", "maturity": "proving" },
+    "platform-packages": { "tier": "shared-platform", "maturity": "reusable" },
+    "platform-upgrader": { "tier": "foundation", "maturity": "reusable" },
+    "react-render-budget": { "tier": "foundation", "maturity": "reusable" },
+    "rect": { "tier": "shared-platform", "maturity": "proving" },
+    "repo-dashboard": { "tier": "product", "maturity": "proving" },
+    "reusable-workflows": { "tier": "foundation", "maturity": "stable" },
+    "runtime-profiler": { "tier": "foundation", "maturity": "reusable" },
+    "rust-kernels": { "tier": "foundation", "maturity": "reusable" }
+  }
+}
