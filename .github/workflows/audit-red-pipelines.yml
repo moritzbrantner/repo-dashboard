@@ -1,0 +1,40 @@
+name: Audit red pipelines
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/audit-red-pipelines.yml
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Collect current default-branch state
+        env:
+          GITHUB_TOKEN: ${{ secrets.REPO_DASHBOARD_TOKEN || github.token }}
+        run: npm run collect
+      - name: Print failing repositories only
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile } from 'node:fs/promises';
+          const snapshot = JSON.parse(await readFile('site/data/repositories.json', 'utf8'));
+          const failing = snapshot.repositories
+            .filter((repo) => repo.pipeline?.state === 'failing')
+            .map((repo) => ({
+              name: repo.name,
+              private: repo.private,
+              defaultBranch: repo.defaultBranch,
+              pipeline: repo.pipeline,
+            }));
+          console.log(JSON.stringify({ generatedAt: snapshot.generatedAt, total: snapshot.repositories.length, failing }, null, 2));
+          NODE
