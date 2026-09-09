@@ -1,12 +1,10 @@
 # Repository landscape registry
 
-The dashboard keeps repository lifecycle metadata in `config/landscape.json` and derives dependency edges from repository-owned architecture declarations.
+The dashboard combines a small strategic registry with repository-owned operational metadata to make the public repository landscape machine-readable without creating duplicate sources of truth.
 
-The goal is to make the repository landscape machine-readable without turning the dashboard into a second owner for facts that already belong elsewhere.
+## Strategic repository tiers
 
-## Repository tiers
-
-Every registered repository has exactly one tier:
+`config/landscape.json` classifies every repository in the current public fleet into exactly one strategic tier:
 
 - `foundation` — low-level contracts, deterministic tooling, and infrastructure intended to support many repositories.
 - `shared-platform` — reusable domain or platform capabilities consumed by multiple products, tools, or templates.
@@ -16,9 +14,9 @@ Every registered repository has exactly one tier:
 
 Tier definitions and their expectations are data in `config/landscape.json`; code only validates the closed set of identifiers.
 
-## Maturity stages
+## Strategic maturity stages
 
-Every registered repository also has exactly one maturity stage:
+Every registered repository also has exactly one strategic maturity stage:
 
 1. `experiment` — early work whose contract may change freely.
 2. `proving` — a real use case exists and the repository is gathering evidence about the right boundary.
@@ -26,24 +24,35 @@ Every registered repository also has exactly one maturity stage:
 4. `stable` — the supported contract has strong deterministic validation, compatibility discipline, and representative consumer evidence.
 5. `maintenance` — feature growth is intentionally limited while compatibility, security, consolidation, or retirement is managed.
 
-Maturity is an explicit lifecycle decision, not a score inferred from commit frequency or repository age.
+This maturity is a landscape-level decision about reuse and support expectations. It is deliberately separate from coding-tooling's repository-local operational `status` contract.
+
+## Repository-owned operational metadata
+
+When a repository contains `.repository.toml`, coding-tooling remains authoritative for that contract. The dashboard reads the same schema and aggregates only validated evidence:
+
+- `kind`: `library`, `app`, `service`, `lab`, `template`, `infrastructure`, `website`, or `data`;
+- `status`: `experimental`, `active`, `stable`, `maintenance`, `retiring`, or `archived`;
+- `summary`;
+- `depends_on` and `consumed_by` relations;
+- `supersedes` and `replaced_by` lifecycle relations.
+
+The dashboard does not infer or rewrite these values. Missing `.repository.toml` is represented as `not-declared`; malformed metadata is `invalid` and contributes no graph edges.
 
 ## Dependency graph ownership
 
-The central registry does **not** maintain dependency lists. A dependency belongs to the repository that consumes it, using the existing coding-tooling contract:
+The central registry does **not** maintain dependency lists. Repository relationships come from repository-owned contracts.
 
-```text
-.coding-tooling.dependencies.json
-```
+`.coding-tooling.dependencies.json` owns architecture-layer dependencies. `coding-tooling dependencies audit` remains authoritative for layer direction, cycles, source-development breadth, and canonical ownership.
 
-`coding-tooling dependencies audit` remains authoritative for architecture rules such as layer direction, cycles, source-development breadth, and canonical ownership. The dashboard only sanitizes the declared direct dependency envelope and aggregates it into the fleet snapshot.
+`.repository.toml` owns higher-level repository relationships and lifecycle links.
 
-This avoids two dependency sources of truth:
+This gives three distinct sources with non-overlapping responsibilities:
 
-- `config/landscape.json` owns tier and maturity metadata.
-- each repository's `.coding-tooling.dependencies.json` owns its declared repository dependencies.
+- `config/landscape.json` owns strategic tier and maturity;
+- `.repository.toml` owns operational kind, status, summary, repository relations, and replacement relations;
+- `.coding-tooling.dependencies.json` owns architecture-layer dependency declarations.
 
-The collector emits public in-fleet dependency edges under:
+The collector emits all validated public in-fleet relations under:
 
 ```text
 site/data/repositories.json -> landscape.graph.edges
@@ -51,31 +60,39 @@ site/data/repositories.json -> landscape.graph.edges
 
 Targets outside the collected public fleet are omitted from the public graph and counted as `omittedExternalEdges`. The public registry must not contain private repository names.
 
+## Graph nodes
+
+Every collected public repository becomes a graph node. Nodes include:
+
+- strategic tier and maturity;
+- repository-owned operational kind, status, and summary when declared;
+- coding-tooling architecture layer when declared;
+- whether the repository exposes a GitHub Pages workflow;
+- its public repository URL.
+
+This keeps unclassified or partially described repositories visible instead of silently removing them from the graph.
+
 ## Fail-closed behavior
 
 The registry validator rejects unsupported tiers or maturity stages, malformed definitions, and malformed repository entries.
 
-Dependency architecture evidence is accepted only when the document is schema version 1, names the repository being collected, uses a supported architecture layer, declares a bounded dependency list, and contains unique well-formed dependency entries. Malformed evidence becomes `invalid`; unreadable evidence becomes `unavailable`. Neither state produces dependency edges.
+Dependency architecture evidence is accepted only when the document is schema version 1, names the repository being collected, uses a supported architecture layer, declares a bounded dependency list, and contains unique well-formed dependency entries.
 
-An unregistered repository remains visible in the fleet but gets no invented tier or maturity. Once higher-priority pipeline, foundation, or contract remediation is clear, the action queue can surface `Classify repository tier and maturity` as the next lifecycle task.
+Repository metadata is accepted only when it follows coding-tooling's schema version 1 contract, names the exact repository being collected, uses a supported kind and status, and contains bounded unique repository relations in `owner/repository` form.
 
-## Snapshot shape
-
-Each repository receives a `landscape` object containing:
-
-- whether it is registered;
-- its tier and maturity, or `null` when intentionally unknown;
-- its dependency architecture state, architecture layer, and sanitized direct dependencies.
-
-The top-level `landscape` object contains the aggregate summary and a deterministic node/edge graph. Nodes include every collected public repository so missing classifications remain visible instead of disappearing from the model.
+Malformed evidence becomes `invalid`; unreadable evidence becomes `unavailable`. Neither state produces graph edges. Higher-priority pipeline or validation failures remain ahead of landscape housekeeping in the action queue.
 
 ## Making changes
 
-When a repository's lifecycle role changes, edit `config/landscape.json` and run:
+When the strategic role or maturity of a repository changes, edit `config/landscape.json` and run:
 
 ```bash
 npm run validate:landscape
 npm run validate
 ```
 
-When a repository gains or changes a cross-repository dependency, update that repository's `.coding-tooling.dependencies.json` and validate it with coding-tooling. Do not add the dependency to `config/landscape.json`.
+When operational repository metadata or repository relationships change, update that repository's `.repository.toml` and validate it with coding-tooling.
+
+When architecture-layer dependencies change, update that repository's `.coding-tooling.dependencies.json` and validate it with coding-tooling.
+
+Do not copy either repository-owned relationship set into `config/landscape.json`.

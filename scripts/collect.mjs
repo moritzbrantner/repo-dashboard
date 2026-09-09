@@ -43,4 +43,9 @@ if (errors.length) throw new Error(`Generated invalid snapshot:\n${errors.join("
 const target = resolve(root, "site/data/repositories.json");
 await mkdir(dirname(target), { recursive: true });
 await writeFile(target, `${JSON.stringify(snapshot, null, 2)}\n`);
-console.log(`Wrote ${repositories.length} repositories and ${landscape.graph.edges.length} dependency edges to ${target}`);
+console.log(`Wrote ${repositories.length} repositories and ${landscape.graph.edges.length} graph edges to ${target}`);
+console.log(
+  `Landscape coverage ${landscape.summary.registered}/${repositories.length}; `
+    + `repository metadata declared ${landscape.summary.repositoryMetadata.declared}, invalid ${landscape.summary.repositoryMetadata.invalid}; `
+    + `dependency contracts declared ${landscape.summary.dependencyContracts.declared}, invalid ${landscape.summary.dependencyContracts.invalid}.`,
+);
