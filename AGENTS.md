@@ -21,3 +21,8 @@ npm run serve
 ```
 
 When collection behavior changes, add fixture-based tests before broadening detection heuristics. Keep heuristics conservative: false negatives are preferable to claiming a repository dogfoods a tool when the evidence is ambiguous.
+
+## Shared coding tooling
+
+- The installed `conventions.json` selection and `.conventions/index.md` provide applicable shared policy without duplicating it here. Keep collector authority and missing-data semantics above intact.
+- Use `coding-tooling inspect --target <existing-path> --json` for focused task context, and `coding-tooling run --tier fast --strict --json` for mechanical tests. The final source-owned gate remains `npm run validate`, which covers more than the semantic test capability.
