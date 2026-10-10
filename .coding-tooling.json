@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "profile": "repository-foundation-v1",
+  "tiers": {
+    "fast": [
+      "test"
+    ],
+    "full": [
+      "test"
+    ]
+  },
+  "requiredCapabilities": [
+    "test"
+  ],
+  "taskKnowledge": {
+    "schemaVersion": 1,
+    "scopes": [],
+    "completion": {
+      "command": [
+        "npm",
+        "run",
+        "validate"
+      ],
+      "source": "package.json"
+    }
+  }
+}
