@@ -2,113 +2,120 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="description" content="Operational health, public-contract verification, and dogfood dashboard for the moritzbrantner repository fleet." />
-    <title>Repository Dashboard</title>
+    <meta name="description" content="Private GitHub development portfolio, Decision Atlas and issue dependency papyrus." />
+    <title>Development Portfolio</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main>
-      <header class="hero">
-        <div>
-          <p class="eyebrow">Repository fleet</p>
-          <h1>Operational dashboard</h1>
-          <p class="lede">A read-only fleet queue that turns CI, foundation, public-contract, activity, and performance evidence into one deterministic next action per repository.</p>
+    <header class="topbar">
+      <a class="wordmark" href="/" id="home-link">Portfolio</a>
+      <nav aria-label="Primary">
+        <button id="nav-repos" class="nav-active" type="button">Repositories</button>
+        <button id="nav-decisions" type="button">Decision inbox</button>
+      </nav>
+      <div class="session">
+        <span id="synced" role="status">Connecting…</span>
+        <button id="refresh" type="button" title="Refresh GitHub data">↻</button>
+        <button id="sign-in" type="button" hidden>Sign in with GitHub</button>
+        <button id="sign-out" type="button" hidden>Sign out</button>
+      </div>
+    </header>
+
+    <main id="main">
+      <section id="message" class="message" hidden role="alert"></section>
+      <section id="portfolio-page">
+        <div class="page-heading">
+          <h1>Repositories</h1>
+          <span id="repo-count" class="muted"></span>
         </div>
-        <div class="freshness" id="freshness">Loading snapshot…</div>
-      </header>
-
-      <section class="summary" id="summary" aria-label="Next fleet action"></section>
-
-      <section class="controls" aria-label="Repository filters">
-        <label>
-          <span>Search</span>
-          <input id="search" type="search" placeholder="Repository, language, failure…" autocomplete="off" />
-        </label>
-        <label>
-          <span>Pipeline</span>
-          <select id="pipeline-filter">
-            <option value="all">All</option>
-            <option value="failing">Failing</option>
-            <option value="attention">Attention</option>
-            <option value="running">Running</option>
-            <option value="passing">Passing</option>
-            <option value="unknown">Unknown</option>
-            <option value="not-configured">No pipeline</option>
-          </select>
-        </label>
-        <label>
-          <span>Activity</span>
-          <select id="activity-filter">
-            <option value="all">All</option>
-            <option value="recent">Recent</option>
-            <option value="active">Active</option>
-            <option value="stale">Stale</option>
-            <option value="unknown">Unknown</option>
-          </select>
-        </label>
-        <label>
-          <span>Action</span>
-          <select id="action-filter">
-            <option value="all">All</option>
-            <option value="pipeline">Pipeline</option>
-            <option value="foundation">Foundation</option>
-            <option value="contract">Public contract</option>
-            <option value="evidence">Evidence</option>
-            <option value="maintenance">Maintenance</option>
-            <option value="none">No immediate action</option>
-          </select>
-        </label>
-        <label>
-          <span>Sort</span>
-          <select id="sort">
-            <option value="action">Next action</option>
-            <option value="dogfood">Dogfood gap</option>
-            <option value="updated">Last push</option>
-            <option value="name">Name</option>
-          </select>
-        </label>
-      </section>
-
-      <section class="fleet" aria-live="polite">
-        <div class="fleet-heading">
-          <h2>Repositories</h2>
-          <span id="result-count"></span>
+        <div class="toolbar">
+          <label>Search <input id="repo-search" type="search" placeholder="Repository…" autocomplete="off" /></label>
+          <label>Period <select id="period">
+            <option value="7">7 days</option><option value="30" selected>30 days</option>
+            <option value="90">90 days</option><option value="all">All time</option>
+          </select></label>
+          <label>Sort <select id="repo-sort">
+            <option value="name">Name</option><option value="done">Completed work</option>
+            <option value="decisions">Unanswered questions</option>
+            <option value="updated">Recently pushed</option>
+          </select></label>
+          <label class="compact-check"><input id="include-archived" type="checkbox" /> Archived</label>
+          <label class="compact-check"><input id="include-forks" type="checkbox" /> Forks</label>
         </div>
-        <div id="empty" class="empty" hidden>No repositories match these filters.</div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Repository</th>
-                <th>Next action</th>
-                <th>Pipeline</th>
-                <th>Foundation</th>
-                <th>Public contract</th>
-                <th>Capabilities</th>
-                <th>Activity</th>
-              </tr>
-            </thead>
-            <tbody id="repositories"></tbody>
+        <div class="table-scroll">
+          <table class="portfolio-table">
+            <thead><tr><th>Repository</th><th>Completed issues</th><th>Merged PRs · 30d</th>
+              <th>Decisions</th><th>Open questions</th><th>Verified delivery</th><th>Trend</th></tr></thead>
+            <tbody id="portfolio-rows"></tbody>
           </table>
         </div>
+        <p class="footnote">Counts use GitHub issue and merge history. Verified delivery is shown only when authoritative repository-specific acceptance evidence is available. No completion targets.</p>
+      </section>
+
+      <section id="repository-page" hidden>
+        <div class="page-heading">
+          <div>
+            <button type="button" id="back-to-repos" class="inline-back">← Repositories</button>
+            <h1 id="repository-title"></h1>
+          </div>
+          <a id="repository-github" target="_blank" rel="noopener noreferrer">Open on GitHub ↗</a>
+        </div>
+        <div id="repository-meta" class="repository-meta"></div>
+        <div class="tabs" role="tablist" aria-label="Repository views">
+          <button type="button" id="tab-atlas" role="tab">Decision Atlas</button>
+          <button type="button" id="tab-execution" role="tab">Execution papyrus</button>
+        </div>
+
+        <div id="atlas-view" class="split-layout">
+          <section class="tree-panel">
+            <div class="panel-heading"><h2>Decision Atlas</h2>
+              <label class="compact-check"><input type="checkbox" id="open-only" /> Open only</label>
+            </div>
+            <div id="atlas-tree" class="atlas-tree"></div>
+          </section>
+          <section id="atlas-editor" class="detail-panel" aria-live="polite">
+            <p class="muted">Select a Decision Atlas entry to inspect it or answer a question.</p>
+          </section>
+        </div>
+
+        <div id="execution-view" hidden>
+          <div class="papyrus-toolbar">
+            <p>GitHub dependencies define the partial order. Dragging or layout never changes priority.</p>
+            <button type="button" id="jump-now">Jump to now</button>
+          </div>
+          <div class="papyrus-layout">
+            <div class="papyrus-scroll" id="papyrus-scroll" tabindex="0" aria-label="Horizontal issue dependency graph; scroll to explore past and future">
+              <div id="papyrus-canvas" class="papyrus-canvas"></div>
+            </div>
+            <aside id="issue-inspector" class="detail-panel inspector">
+              <p class="muted">Select an issue to inspect its immediate predecessors, successors, and decision blockers.</p>
+            </aside>
+          </div>
+          <div class="papyrus-footer">
+            <span>← Completed work</span><span>Current activity</span><span>Upcoming work →</span>
+          </div>
+          <details class="independent" id="independent-details">
+            <summary id="independent-summary">Independent issues</summary>
+            <div id="independent-items"></div>
+          </details>
+        </div>
+      </section>
+
+      <section id="decisions-page" hidden>
+        <div class="page-heading"><h1>Decision inbox</h1><span id="question-count" class="muted"></span></div>
+        <div class="toolbar">
+          <label>Questions <select id="decision-filter">
+            <option value="all">All unanswered</option><option value="blocking">Blocking implementation</option>
+          </select></label>
+          <button id="guided-next" type="button">Next question</button>
+        </div>
+        <div id="decision-items" class="decision-items"></div>
+        <p class="footnote">The inbox reads the repository's authoritative Decision Atlas and explicit GitHub issue question references. No questions are generated automatically.</p>
       </section>
     </main>
-    <template id="repo-row-template">
-      <tr class="repo-row">
-        <td class="repo-cell"></td>
-        <td class="action-cell"></td>
-        <td class="pipeline-cell"></td>
-        <td class="foundation-cell"></td>
-        <td class="contract-cell"></td>
-        <td class="capabilities-cell"></td>
-        <td class="activity-cell"></td>
-      </tr>
-      <tr class="detail-row" hidden>
-        <td colspan="7"><div class="detail"></div></td>
-      </tr>
-    </template>
+
     <script type="module" src="./app.js"></script>
   </body>
 </html>

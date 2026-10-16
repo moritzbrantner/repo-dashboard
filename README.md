@@ -1,124 +1,40 @@
-# repo-dashboard
+# Development Portfolio (repo-dashboard)
 
-A static operational dashboard for the `moritzbrantner` repository fleet. It answers seven questions without becoming another source of truth:
+A private, self-hostable interface for GitHub portfolio progress, Decision Atlas steering, and native issue dependencies. Replaces the old public operational dashboard.
 
-1. **Is the repository healthy?** Latest default-branch pipeline state and failed jobs.
-2. **Is its public contract verified?** Report-derived discovered, verified, unverified, and incompletely analyzed external surfaces.
-3. **Does it dogfood the shared engineering landscape?** Conservative evidence for agent guidance, environment contracts, conventions, Renovate, validation, reusable workflows, and coding-tooling.
-4. **What should happen next?** One deterministic remediation derived from evidence, ordered pipeline → foundation → public contract → stale ownership review.
-5. **What quality/performance capabilities exist?** Pages, coverage, benchmarks, runtime-profiler, Moonlight, plus optionally published metrics.
-6. **Is work moving?** Last push, archived state, and stale/recent activity classification.
-7. **How much deterministic work is avoided?** Optional reconciliation metrics distinguish real changes from verified no-ops.
+## Views
 
-The dashboard is intentionally read-only. It observes repositories; it does not edit them. Private repositories are excluded by default so a public Pages deployment cannot leak their names or metadata. The UI leads with the next evidence-backed action instead of fleet KPI/count cards; raw measurements stay attached to the repository evidence where they can drive an actual decision.
+1. Repository overview: a searchable, sortable table showing completed issues, 7/30/90-day trends, merged PRs, recorded decisions and open questions. Historical activity is absolute, never measured against an invented completion target.
+2. Decision Atlas: browse the owning repository's hierarchical Markdown, inspect existing answers, answer questions with descriptive decisions, and submit append-only updates as GitHub PRs. A cross-repository decision inbox collects unanswered questions and supports one-at-a-time review.
+3. Execution papyrus: horizontally scrolling, dependency-first DAG. Active GitHub issue evidence is centered, completed predecessors and future successors flank it, and independent work is collapsible. All edges use native GitHub issue dependencies, including cross-repository links. The UI can edit GitHub dependencies, but positioning is never a priority field.
 
-## Architecture
-
-- `scripts/collect.mjs` reads GitHub and writes a normalized snapshot to `site/data/repositories.json`.
-- `lib/github.mjs` contains conservative evidence collection and API handling.
-- `lib/model.mjs` owns scoring, activity classification, deterministic next-action derivation, summaries, reconciliation efficiency, and snapshot validation.
-- `site/` is a dependency-free static UI suitable for GitHub Pages.
-- `.repo-dashboard/metrics.json` is an optional per-repository contract for benchmark, performance, quality, coverage, and reconciliation values that cannot be inferred safely.
-- `coding-tooling` owns public-contract discovery, evidence semantics, and enforcement; this dashboard only aggregates its emitted summary.
-
-No front-end framework or runtime dependency is required. The dashboard should remain easier to keep alive than the repositories it monitors.
+The dashboard reports no verification evidence where a repository has not published an authoritative acceptance signal. Live worker integrations and AI-generated new steering questions are deferred, not silently simulated.
 
 ## Local use
 
-Node 22+ is sufficient.
+Node.js 22 or later, no runtime dependencies.
 
-```bash
-npm test
-npm run validate
-GITHUB_TOKEN="$(gh auth token)" npm run collect
-npm run serve
-```
+    GITHUB_TOKEN="$(gh auth token)" npm run serve
 
-Open `http://localhost:4173`.
+Open http://127.0.0.1:4173. The token must authenticate as the configured owner. Read operations need permission for repository metadata, Issues, Pull Requests and Contents. Native dependency editing needs Issues write permission; Decision Atlas PRs need Contents and Pull Requests write permission.
 
-Without `GITHUB_TOKEN`, public GitHub API collection can hit the unauthenticated rate limit for a large fleet. For complete collection, use a token with read-only access to the repositories being monitored.
+A derived private cache is written to untracked data/portfolio.json with restrictive file permissions; remove it to rebuild from GitHub. First-time issue history collection may take time. Subsequent syncs use updated timestamps with overlap for idempotence.
 
-## GitHub Pages
+## Hosted deployment
 
-The Pages workflow refreshes the snapshot every six hours and on manual dispatch, then deploys `site/`.
+For GitHub OAuth, configure HOST, PORT, PUBLIC_URL (HTTPS URL), GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET. Configure the OAuth App callback as PUBLIC_URL/auth/callback. GitHub sign-in is restricted to the configured repository owner. Serve through an HTTPS reverse proxy and do not set GITHUB_TOKEN on a public interface. Session credentials remain in process memory and require re-login on restart. Mount data/ as private persistent storage for historical snapshots.
 
-For reliable fleet-wide collection, add a repository secret named `REPO_DASHBOARD_TOKEN`. A fine-grained token only needs read access to repository metadata, contents, and Actions for the repositories you want represented. If the secret is absent, the workflow falls back to its repository-scoped GitHub token and the collector records inaccessible evidence as unavailable rather than inventing results.
+The old GitHub Pages collector and deployment workflow has been removed. Do not deploy private portfolio data to public GitHub Pages.
 
-## Public-contract verification
+## Evidence and current limits
 
-A repository adopts the standardized public-contract pipeline through `reusable-workflows`. The detailed source of truth is the canonical report:
+- Completed issue counts exclude closed reasons not_planned and duplicate. Legacy closed issues with unspecified reasons may count as completed; the distinction is explained in the UI.
+- The first issue import is capped at 3,000 records per repository to bound API consumption. Capped totals are marked partial.
+- Recent merged PR count is derived from GitHub search. CI success alone is never interpreted as feature verification.
+- Atlas discovery recognizes numbered atlas.md and decision-atlas.md paths and preserves stable IDs. Answer updates use branch + PR + optimistic blob-SHA checks. GitHub auto-merge is requested only when allowed by the repository, and pending decisions remain pending until merged.
+- GitHub's native dependency endpoints are queried for the currently relevant work. If access is denied, missing relationships are reported as unavailable rather than invented.
+- Local derived snapshots record daily repository progress; missing historic blocker evidence is not reconstructed from guesses.
+- Free browsing and one-at-a-time review of recorded questions work without AI. AI-assisted question discovery will require an agent integration in a later slice.
+- No alternative dependency database, issue prioritization service, artificial deadlines, or additional validation pipelines.
 
-```text
-.artifacts/coding-tooling/public-contract.json
-```
-
-The uploaded Actions artifact name also carries a compact summary generated from that same JSON report:
-
-```text
-coding-tooling-public-contract-v1-d47-vfy45-u2-i0-f0-<run>-<attempt>
-```
-
-The dashboard reads only this validated summary envelope for fleet statistics; it does not download ZIP contents or reconstruct public-contract semantics. In the example above, 47 surfaces were discovered, 45 verified, 2 unverified, 0 had incomplete discovery, and 0 verifier mappings failed.
-
-States remain explicit:
-
-- `measured`: a valid current report-derived summary artifact exists;
-- `unavailable`: a public-contract workflow exists but no readable non-expired summary is available;
-- `not-configured`: no public-contract workflow is detected;
-- `unknown`: repository collection itself failed.
-
-Incomplete discovery is never counted as verified merely because no finding was emitted. Ordinary line/function coverage remains a separate secondary capability.
-
-## Dogfood model
-
-Foundation adoption is scored over seven conservative signals:
-
-- `AGENTS.md`
-- repository environment contract/bootstrap
-- coding-agent conventions
-- Renovate
-- validation workflow
-- reusable-workflows
-- coding-tooling
-
-Pages, coverage, benchmarks, runtime-profiler, Moonlight, and public-contract verification are displayed separately and **do not** lower a repository's foundation score when absent.
-
-## Optional metrics evidence contract
-
-A repository may publish `.repo-dashboard/metrics.json`:
-
-```json
-{
-  "schemaVersion": 1,
-  "updatedAt": "2026-09-02T20:00:00Z",
-  "metrics": [
-    {
-      "id": "endpoint-latency-p95",
-      "label": "Endpoint p95",
-      "value": 12.4,
-      "unit": "ms",
-      "preferredDirection": "lower",
-      "source": "benchmark"
-    }
-  ]
-}
-```
-
-Supported `source` values are `benchmark`, `coverage`, `performance`, `quality`, and `reconciliation`.
-
-### Reconciliation efficiency
-
-Deterministic mutators can publish cumulative operation counts using these stable metric IDs:
-
-- `reconciliation.attempted` — reconciliation operations evaluated;
-- `reconciliation.changed` — operations that applied a real state change;
-- `reconciliation.unchanged` — already-satisfied operations verified as no-ops;
-- `reconciliation.conflict` — operations that stopped because current state could not be reconciled safely.
-
-Use `unit: "operations"` and `source: "reconciliation"`. The fleet summary computes `workAvoidedRatio = reconciliation.unchanged / reconciliation.attempted`. The ratio measures verified duplicate work avoided; it is not a correctness score, and repositories that do not publish reconciliation evidence are excluded from the aggregate rather than treated as zero-efficiency.
-
-Only this small whitelist is ingested. Raw profiler output, logs, machine-local paths, and arbitrary artifact contents stay out of the dashboard snapshot.
-
-## Next extensions
-
-The model intentionally leaves room for historical snapshots, public-contract trends and deltas, GitHub Pages/Lighthouse health, coverage deltas, release freshness, dependency drift, and deeper benchmark provenance. Public-contract `protect-new` should be surfaced only after `coding-tooling` can produce authoritative base-versus-head comparison evidence; the dashboard must not invent that comparison itself.
+Run npm test and npm run validate before merging.
