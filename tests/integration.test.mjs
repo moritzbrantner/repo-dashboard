@@ -21,3 +21,16 @@ test("execution view uses only native issue dependencies, including cross-reposi
   assert.deepEqual(view.edges,[{from:"owner/shared#2",to:"owner/main#1"},{from:"owner/main#1",to:"owner/main#3"}]);
   assert.equal(view.nodes.some((issue)=>issue.id==="owner/main#88"),false);
 });
+
+test("no GitHub work evidence does not mark ready fallback issues as active",async()=>{
+  const client=new PortfolioGitHubClient("fixture");
+  const issue={id:"owner/main#2",repo:"owner/main",number:2,title:"Queued",state:"open",labels:[],questionRefs:[],updated_at:"2020-01-01T00:00:00Z"};
+  client.request=async(path)=>{
+    if(path.endsWith("/pulls?state=open&per_page=100"))return [];
+    if(path.includes("/dependencies/"))return [];
+    throw new Error("Unexpected endpoint: "+path);
+  };
+  const view=await client.listDetail("owner","main",{issues:[issue],atlas:null,summary:{},syncedAt:"today"});
+  assert.equal(view.nodes[0].active,false);
+  assert.equal(view.nodes[0].activity,"ready-or-unknown");
+});
