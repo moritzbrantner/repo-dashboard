@@ -53,7 +53,6 @@ export function createPortfolioServer({store,owner,host="127.0.0.1",localToken=n
   const origin=base?.origin ?? null;
   const sessions=new Map();
   const pending=new Map();
-  const apiClient=localToken?new PortfolioGitHubClient(localToken):null;
 
   const server=createServer(async(request,response)=>{
     response.setHeader("x-content-type-options","nosniff");
