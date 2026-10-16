@@ -113,6 +113,7 @@ async function loadPortfolio(){
 }
 async function loadRepository(name){
   const repo=repoByName(name);
+  if (state.repo?.name!==name) {state.atlas=null;state.detail=null;state.selected=null;}
   state.repo=repo;
   if(!repo){message("Repository not found. Synchronize first.");return;}
   $("#repository-title").textContent=name;
@@ -144,6 +145,12 @@ function createTreeItem(entry,children,query){
     details.open=Number(entry.id.split(".").length)<=2 || Boolean(query && children.has(entry.id));
     const summary=node("summary");
     summary.append(text("span",entry.id+" · "+cleanMarkdown(entry.body)));
+    summary.addEventListener("click",()=>{
+      state.question=entry.id;
+      const params=new URLSearchParams(location.search);params.set("question",entry.id);
+      history.replaceState(null,"","?"+params.toString());
+      renderAtlasEditor(entry);
+    });
     details.append(summary);
     const nested=node("ul");
     for(const child of children.get(entry.id)??[]) {
@@ -189,7 +196,7 @@ function renderAtlas(){
 }
 function choiceText(question,letter){
   const plain=cleanMarkdown(question.body);
-  const marker=new RegExp("(?:^|[;,])\\s*(?:or\\s+)?(?:Choose\\s+)?"+letter+"\\s*[:—-]\\s*","i");
+  const marker=new RegExp("\\b(?:Choose\\s+)?"+letter+"\\s*[:—-]\\s*","i");
   const match=marker.exec(plain);
   if(!match)return "Choice "+letter+" — ";
   const rest=plain.slice(match.index+match[0].length);
@@ -202,6 +209,32 @@ function renderAtlasEditor(entry){
   if(!entry){target.append(text("p","Select an entry in the tree.","muted"));return;}
   target.append(text("p","Decision Atlas "+entry.id,"eyebrow"),text("h2",entry.kind==="question"?"Unresolved question":entry.kind==="decision"?"Recorded decision":"Section"));
   const body=text("p",cleanMarkdown(entry.body),"decision-body");target.append(body);
+  if(entry.kind==="group") {
+    const form=node("form","answer-form");
+    form.append(text("label","Add an entry under section "+entry.id));
+    const kind=node("select");
+    for(const value of ["question","decision"]) {
+      const option=node("option",null,value==="question"?"Question":"Decision");
+      option.value=value;kind.append(option);
+    }
+    const statement=node("textarea");statement.rows=5;statement.required=true;statement.minLength=10;
+    statement.placeholder="New question or established decision; give enough context to make it meaningful.";
+    const submit=node("button","primary","Propose entry");submit.type="submit";
+    const result=node("div","save-result");
+    form.append(kind,statement,submit,result);
+    form.addEventListener("submit",async(event)=>{
+      event.preventDefault();submit.disabled=true;result.textContent="Creating GitHub change…";
+      try {
+        const saved=await api("/api/repositories/"+encodeURIComponent(state.repo.name)+"/entry",{
+          method:"POST",body:JSON.stringify({parentId:entry.id,kind:kind.value,body:statement.value,sha:state.atlas.sha})});
+        result.replaceChildren(text("p","Entry "+saved.decisionId+" proposed; pending repository merge."));
+        result.append(externalLink(saved.url,"Open pull request #"+saved.number));
+      }catch(error){result.replaceChildren(text("p",error.message,"warning"));}
+      finally{submit.disabled=false;}
+    });
+    target.append(form);
+    return;
+  }
   if(entry.kind!=="question"||entry.resolved){
     if(entry.resolved)target.append(badge("Already answered","subtle"));
     return;
@@ -236,7 +269,7 @@ function renderAtlasEditor(entry){
 function issueLabel(issue){
   return issue.repo+"#"+issue.number;
 }
-function issueById(id){return state.detail?.nodes.find((item)=>item.id===id);}
+function issueById(id){return [...(state.detail?.nodes??[]),...(state.detail?.independentItems??[])].find((item)=>item.id===id);}
 function svg(tag){return document.createElementNS("http://www.w3.org/2000/svg",tag);}
 function renderPapyrus(){
   const canvas=$("#papyrus-canvas");
@@ -244,7 +277,8 @@ function renderPapyrus(){
   const detail=state.detail;
   if(!detail?.nodes){canvas.append(text("p",detail?.error??"No issue evidence available.","muted"));return;}
   let graph;
-  try{graph=layoutDag(detail.nodes,detail.edges);}
+  const visible=state.expanded?[...detail.nodes,...(detail.independentItems??[])]:detail.nodes;
+  try{graph=layoutDag(visible,detail.edges);}
   catch(error){canvas.append(text("p",error.message,"warning"));return;}
   canvas.style.width=graph.width+"px";canvas.style.height=graph.height+"px";
   const paths=svg("svg");paths.setAttribute("class","papyrus-edges");
@@ -460,6 +494,10 @@ function bind(){
   $("#tab-execution").addEventListener("click",()=>setRoute({repo:state.repo.name,view:"execution"}));
   $("#open-only").addEventListener("change",(e)=>{state.openOnly=e.target.checked;renderAtlas();});
   $("#jump-now").addEventListener("click",()=>{state.selected=null;renderPapyrus();});
+  $("#independent-details").addEventListener("toggle",(event)=>{
+    state.expanded=event.target.open;
+    if(state.view==="execution"&&state.detail)renderPapyrus();
+  });
   $("#decision-filter").addEventListener("change",(e)=>{state.filter=e.target.value;void renderInbox();});
   $("#guided-next").addEventListener("click",()=>{
     const next=state.inbox.find((entry)=>state.filter!=="blocking"||entry.blocking);
