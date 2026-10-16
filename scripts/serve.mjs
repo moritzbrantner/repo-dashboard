@@ -124,7 +124,7 @@ export function createPortfolioServer({store,owner,host="127.0.0.1",localToken=n
           return writeJson(response,200,{loggedOut:true});
         }
 
-        const match=/^\/api\/repositories\/([a-zA-Z0-9_.-]+)(?:\/(atlas|answer|dependencies))?$/.exec(path);
+        const match=/^\/api\/repositories\/([a-zA-Z0-9_.-]+)(?:\/(atlas|answer|entry|dependencies))?$/.exec(path);
         if (!match) return writeJson(response,404,{error:"Unknown endpoint."});
         const name=match[1];
         if (request.method==="GET" && !match[2]) {
@@ -141,6 +141,13 @@ export function createPortfolioServer({store,owner,host="127.0.0.1",localToken=n
             typeof data.sha!=="string") return writeJson(response,400,{error:"Invalid answer request."});
           return writeJson(response,201,await store.answer(name,data.questionId,data.answer,data.sha));
         }
+        if (request.method==="POST" && match[2]==="entry") {
+          const data=await readJson(request);
+          if (typeof data.parentId!=="string" || typeof data.body!=="string" ||
+              typeof data.kind!=="string" || typeof data.sha!=="string")
+            return writeJson(response,400,{error:"Invalid entry request."});
+          return writeJson(response,201,await store.entry(name,data.parentId,data.kind,data.body,data.sha));
+        }
         if (request.method==="POST" && match[2]==="dependencies") {
           const data=await readJson(request);
           if (!["add","remove"].includes(data.action) ||
@@ -153,6 +160,11 @@ export function createPortfolioServer({store,owner,host="127.0.0.1",localToken=n
       }
 
       if (request.method!=="GET" && request.method!=="HEAD") return writeJson(response,405,{error:"Method not allowed."});
+      if (path==="/shared/portfolio.mjs") {
+        const bytes=await readFile(resolve(root,"lib/portfolio.mjs"));
+        response.writeHead(200,{"content-type":"text/javascript; charset=utf-8","cache-control":"no-store"});
+        return response.end(request.method==="HEAD"?undefined:bytes);
+      }
       let decoded;
       try {decoded=decodeURIComponent(path);} catch {return writeJson(response,400,{error:"Invalid path."});}
       const candidate=resolve(site,"."+decoded);
@@ -182,15 +194,15 @@ if (process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)
   const store=await new PortfolioStore({owner:config.owner,file:resolve(root,"data/portfolio.json"),
     client,concurrency:config.maxConcurrency}).load();
   const server=createPortfolioServer({store,owner:config.owner,host,localToken:token});
+  if (client) {
+    const user=await client.viewer();
+    if (user.login?.toLowerCase()!==config.owner.toLowerCase()) {
+      throw new Error("GITHUB_TOKEN must authenticate as "+config.owner+", got "+user.login);
+    }
+  }
   server.listen(port,host,()=>{
     console.log("Portfolio manager: http://"+host+":"+port);
-    if (client) void client.viewer().then((user)=>{
-      if (user.login?.toLowerCase()!==config.owner.toLowerCase()) {
-        console.error("GITHUB_TOKEN belongs to "+user.login+", expected "+config.owner);
-        return;
-      }
-      void store.sync();
-    }).catch((error)=>console.error("GitHub authentication:",error.message));
+    if (client) void store.sync();
   });
   setInterval(()=>{if (store.client) void store.sync();},15*60_000).unref();
 }

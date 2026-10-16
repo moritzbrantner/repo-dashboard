@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseAtlas, answerDecision, issueQuestionRefs, summarizeIssues, layoutDag } from "../lib/portfolio.mjs";
+import { parseAtlas, answerDecision, appendAtlasEntry, issueQuestionRefs, summarizeIssues, layoutDag } from "../lib/portfolio.mjs";
 
 const atlas = [
   "- **1** Combat",
@@ -52,4 +52,10 @@ test("DAG displays fan-in and fan-out and rejects cycles", () => {
   for (const {from,to} of edges) assert.ok(byId.get(from).x < byId.get(to).x);
   assert.deepEqual(byId.get("c").predecessors, ["a","b"]);
   assert.throws(() => layoutDag(nodes,[...edges,{from:"d",to:"a"}]), /cycle/);
+});
+
+test("new questions are appended under the section without changing other IDs", () => {
+  const created=appendAtlasEntry(atlas,"1.1","question","How should a guard respond to high attacks?");
+  assert.equal(created.decisionId,"1.1.3");
+  assert.equal(parseAtlas(created.markdown).openQuestions,3);
 });

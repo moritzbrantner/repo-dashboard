@@ -93,6 +93,7 @@ function renderTable(){
     row.append(text("td",repo.summary?.merged30??"—","numeric"));
     row.append(text("td",repo.summary?.atlasDecisions??"—","numeric"));
     row.append(text("td",repo.summary?.questionsOpen??"—","numeric"));
+    row.append(text("td",repo.summary?.questionBlockers??"—","numeric"));
     row.append(text("td",repo.summary?.verified??"Unknown","muted"));
     const trend=node("td","spark");trend.append(sparkline(repo.summary?.activity,state.period==="all"?90:state.period));row.append(trend);
     row.tabIndex=0;row.setAttribute("aria-label","Open "+repo.name);
@@ -100,7 +101,7 @@ function renderTable(){
     row.addEventListener("keydown",(event)=>{if(event.key==="Enter")setRoute({repo:repo.name});});
     body.append(row);
   }
-  if(!repos.length){const row=node("tr");const td=text("td","No repositories match the filters.","muted");td.colSpan=7;row.append(td);body.append(row);}
+  if(!repos.length){const row=node("tr");const td=text("td","No repositories match the filters.","muted");td.colSpan=8;row.append(td);body.append(row);}
 }
 
 async function loadPortfolio(){
@@ -278,11 +279,17 @@ function renderPapyrus(){
       item.activity==="in-progress"?"In progress":item.activity==="recent"?"Recent activity":"Open"));
     card.append(header,text("span",item.title,"issue-title"));
     card.append(text("span",item.repo,"issue-repo"));
-    const openRefs=item.questionRefs?.filter((id)=>state.atlas?.entries?.some((entry)=>entry.id===id&&!entry.resolved))??[];
+    const ownRepo=item.repo===state.repo.fullName;
+    const openRefs=item.questionRefs?.filter((id)=>!ownRepo || state.atlas?.entries?.some((entry)=>entry.id===id&&!entry.resolved))??[];
     if(openRefs.length){
       const button=node("button","question-badge",openRefs.length+" decision question"+(openRefs.length>1?"s":""));
       button.type="button";
-      button.addEventListener("click",(event)=>{event.stopPropagation();setRoute({repo:state.repo.name,view:"atlas",question:openRefs[0]});});
+      button.addEventListener("click",(event)=>{
+        event.stopPropagation();
+        const repoName=item.repo.split("/")[1];
+        if(repoByName(repoName))setRoute({repo:repoName,view:"atlas",question:openRefs[0]});
+        else message("The referenced repository is not in this portfolio.");
+      });
       card.append(button);
     }
     card.addEventListener("click",()=>selectIssue(item.id));
@@ -300,7 +307,7 @@ function renderPapyrus(){
   list.replaceChildren();
   for(const item of detail.independentItems??[]) {
     const button=node("button","independent-issue","#"+item.number+" · "+item.title);
-    button.addEventListener("click",()=>selectIssue(item.id));
+    button.addEventListener("click",()=>{state.expanded=true;$("#independent-details").open=true;selectIssue(item.id);});
     list.append(button);
   }
   if(detail.notices?.length)list.append(text("p",detail.notices.join("; "),"warning"));
@@ -351,7 +358,11 @@ function renderInspector(){
     target.append(text("h3","Referenced Decision Atlas questions"));
     for(const id of issue.questionRefs){
       const button=node("button","question-link","Question "+id+" ↗");
-      button.addEventListener("click",()=>setRoute({repo:state.repo.name,view:"atlas",question:id}));
+      button.addEventListener("click",()=>{
+        const repoName=issue.repo.split("/")[1];
+        if(repoByName(repoName))setRoute({repo:repoName,view:"atlas",question:id});
+        else message("The referenced repository is not in this portfolio.");
+      });
       target.append(button);
     }
   }
