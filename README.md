@@ -2,6 +2,8 @@
 
 A private, self-hostable interface for GitHub portfolio progress, Decision Atlas steering, and native issue dependencies. Replaces the old public operational dashboard.
 
+Product decisions are recorded in [the owning Decision Atlas](docs/decisions/atlas.md). AI steering will reuse existing coding-agent workflows; it is not yet integrated into the application.
+
 ## Views
 
 1. Repository overview: a searchable, sortable table showing completed issues, 7/30/90-day trends, merged PRs, recorded decisions and open questions. Historical activity is absolute, never measured against an invented completion target.
