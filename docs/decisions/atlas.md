@@ -1,6 +1,6 @@
 # Development Portfolio — Decision Atlas
 
-This is the authoritative product-decision record for `repo-dashboard`. It consolidates the owner's steering answers through Question 31. Each numbered leaf is a **Decision**; headings are navigation branches. The labels `Q1`–`Q31` refer to the original steering questions, not to Atlas IDs.
+This is the authoritative product-decision record for `repo-dashboard`. It consolidates the owner's steering answers through Question 32. Each numbered leaf is a **Decision**; headings are navigation branches. The labels `Q1`–`Q32` refer to the original steering questions, not to Atlas IDs.
 
 Decisions are append-only: new decisions and consequential unresolved `[question]` leaves receive stable, unused child IDs. New answers append a Decision referring to the answered question; changes to established intent append a superseding Decision rather than silently rewriting old entries. GitHub issues own implementation and native dependencies; this Atlas owns product intent. Progress statistics are derived, not a second source of truth.
 
@@ -34,6 +34,7 @@ Decisions are append-only: new decisions and consequential unresolved `[question
   - **3.4** [Q29 — C] Offer both free Atlas editing and one-question-at-a-time guided steering, separately for product and technical architecture.
   - **3.5** [Q30 — B] Discover new steering questions only on request, inspecting established decisions, architecture, and issues. Propose only consequential unresolved questions; do not manufacture a backlog.
   - **3.6** [Q31 — A, 2026-10-17] Delegate AI-assisted guided steering and on-demand question discovery to the existing coding agents and their repository-local `/steer` and `/tech-steer` workflows. Reuse agent skills, installed conventions, and existing product/technical decision records; do not build a parallel in-application steering engine. The portfolio is the graphical interface, not an alternative decision authority.
+  - **3.7** [Q32 — A, 2026-10-17] Run AI-assisted steering through an existing coding-agent CLI launched as a local process on the machine hosting the portfolio, operating in the selected repository checkout and applying its own `/steer` or `/tech-steer` workflow, `AGENTS.md`, and installed conventions. Do not build or require a remote agent runner initially. If the local CLI or checkout is unavailable, surface the blocker rather than simulating an agent or switching to a parallel steering engine. Agent session lifetime and isolation remain separate decisions.
 - **4** Operation and access
   - **4.1** [Q15 — A] Initially infer work status from GitHub issues, PRs, and CI; defer direct live-worker integration.
   - **4.2** [Q25 — A] The initial application is personal and private, with GitHub authentication and repository access controls.
