@@ -33,10 +33,15 @@ test("private API requires an authorized session and a same-origin write",async(
 
 test("local-only token authorizes read, rejects cross-origin writes",async()=>{
   const store={lastSynced:"now",syncing:false,overview:()=>({repositories:[{name:"a"}]}),
-    detail:async()=>({nodes:[]}),decisions:()=>[],sync:async()=>{}};
+    detail:async()=>({nodes:[]}),decisions:()=>[],sync:async()=>{},
+    backlog:async(offset)=>({total:1,offset,items:[{id:"o/a#1",status:"ready"}],nextOffset:null})};
   await withServer({store,owner:"o",host:"127.0.0.1",localToken:"fake"},async(origin)=>{
     const response=await fetch(origin+"/api/portfolio");
     assert.equal((await response.json()).repositories.length,1);
+    const backlog=await fetch(origin+"/api/backlog?offset=0");
+    assert.equal((await backlog.json()).items[0].status,"ready");
+    const invalid=await fetch(origin+"/api/backlog?offset=-1");
+    assert.equal(invalid.status,400);
     const blocked=await fetch(origin+"/api/refresh",{method:"POST",headers:{Origin:"https://evil.test"}});
     assert.equal(blocked.status,403);
   });

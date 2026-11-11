@@ -117,6 +117,11 @@ export function createPortfolioServer({store,owner,host="127.0.0.1",localToken=n
           return writeJson(response,202,{syncing:true});
         }
         if (path==="/api/decisions" && request.method==="GET") return writeJson(response,200,{questions:store.decisions()});
+        if (path==="/api/backlog" && request.method==="GET") {
+          const raw=url.searchParams.get("offset")??"0";
+          if(!/^(0|[1-9]\d{0,5})$/.test(raw))return writeJson(response,400,{error:"Invalid backlog offset."});
+          return writeJson(response,200,await store.backlog(Number(raw)));
+        }
         if (path==="/api/logout" && request.method==="POST") {
           if (values.portfolio_session) sessions.delete(values.portfolio_session);
           response.setHeader("set-cookie",cookie("portfolio_session","",secure,-1)+"; Max-Age=0");

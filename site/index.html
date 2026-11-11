@@ -13,6 +13,7 @@
       <a class="wordmark" href="/" id="home-link">Portfolio</a>
       <nav aria-label="Primary">
         <button id="nav-repos" class="nav-active" type="button">Repositories</button>
+        <button id="nav-backlog" type="button">Backlog</button>
         <button id="nav-decisions" type="button">Decision inbox</button>
       </nav>
       <div class="session">
@@ -52,6 +53,22 @@
           </table>
         </div>
         <p class="footnote">Counts use GitHub issue and merge history. Verified delivery is shown only when authoritative repository-specific acceptance evidence is available. No completion targets.</p>
+      </section>
+
+      <section id="backlog-page" hidden>
+        <div class="page-heading"><h1>Dependency backlog</h1><span id="backlog-count" class="muted"></span></div>
+        <div class="toolbar">
+          <label>Status <select id="backlog-filter">
+            <option value="all">All scanned</option><option value="ready">Ready</option>
+            <option value="blocked">Blocked</option><option value="unknown">Unknown</option>
+          </select></label>
+          <button type="button" class="subtle-button" id="backlog-scan">Scan next 40</button>
+        </div>
+        <div class="table-scroll"><table class="portfolio-table backlog-table">
+          <thead><tr><th>Issue</th><th>Status</th><th>Native blockers / decisions</th></tr></thead>
+          <tbody id="backlog-rows"></tbody>
+        </table></div>
+        <p class="footnote">Read-only, on-demand scan of open issues in non-archived, non-fork repositories. Only native GitHub dependencies and explicit unresolved Atlas questions block work. Results are not priorities. Unchecked issues are not assumed ready; GitHub failures remain unknown.</p>
       </section>
 
       <section id="repository-page" hidden>

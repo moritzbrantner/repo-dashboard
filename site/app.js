@@ -3,7 +3,8 @@ import { layoutDag } from "./shared/portfolio.mjs";
 const $=(selector)=>document.querySelector(selector);
 const state={portfolio:null,repo:null,detail:null,atlas:null,selected:null,question:null,
   view:"atlas",period:"30",sort:"name",query:"",includeArchived:false,includeForks:false,
-  filter:"all",openOnly:false,expanded:false,inbox:[],busy:false};
+  filter:"all",openOnly:false,expanded:false,inbox:[],busy:false,
+  backlog:[],backlogNext:0,backlogTotal:null,backlogFilter:"all"};
 const node=(tag,cls,content)=>{
   const element=document.createElement(tag);
   if(cls)element.className=cls;
@@ -36,12 +37,13 @@ function formatDate(value) {
   const date=new Date(value);
   return Number.isNaN(date.getTime())?"unknown":date.toLocaleDateString();
 }
-function setRoute({repo=null,view=null,question=null,issue=null,inbox=false}={}) {
+function setRoute({repo=null,view=null,question=null,issue=null,inbox=false,backlog=false}={}) {
   const params=new URLSearchParams();
   if(repo){params.set("repo",repo);params.set("view",view??"atlas");}
   if(question)params.set("question",question);
   if(issue)params.set("issue",issue);
   if(inbox)params.set("page","decisions");
+  if(backlog)params.set("page","backlog");
   history.pushState(null,"",params.size?"?"+params.toString():location.pathname);
   void route();
 }
@@ -451,18 +453,59 @@ async function renderInbox(){
   }
   if(!items.length)target.append(text("p","No unanswered questions in the current view.","muted"));
 }
+function renderBacklog(){
+  const shown=state.backlog.filter((item)=>state.backlogFilter==="all"||item.status===state.backlogFilter);
+  $("#backlog-count").textContent=state.backlog.length+" scanned of "+(state.backlogTotal??"?")+" open issues";
+  $("#backlog-scan").hidden=state.backlogNext===null;
+  const target=$("#backlog-rows");target.replaceChildren();
+  for(const item of shown){
+    const row=node("tr");
+    const title=node("td");title.append(externalLink(item.url,item.repo+"#"+item.number),
+      text("span",item.title,"backlog-title"));
+    row.append(title);
+    const status=node("td");
+    status.append(badge(item.status,item.status==="blocked"?"warn":item.status==="unknown"?"subtle":""));
+    row.append(status);
+    const blockers=node("td");
+    const open=(item.blockers??[]).filter((issue)=>issue.state!=="closed");
+    for(const blocker of open)blockers.append(externalLink(blocker.url,blocker.repo+"#"+blocker.number),text("span"," "));
+    if(item.questions?.length)blockers.append(text("span","Atlas "+item.questions.join(", "),"warning"));
+    if(item.error)blockers.append(text("span",item.error,"warning"));
+    if(!open.length&&!item.questions?.length&&!item.error)blockers.append(text("span","None","muted"));
+    row.append(blockers);target.append(row);
+  }
+  if(!shown.length){const row=node("tr");const cell=text("td","No matching scanned issues.","muted");cell.colSpan=3;row.append(cell);target.append(row);}
+}
+async function scanBacklog(){
+  if(state.busy||state.backlogNext===null)return;
+  state.busy=true;
+  const button=$("#backlog-scan");button.disabled=true;button.textContent="Checking GitHub…";
+  try{
+    const result=await api("/api/backlog?offset="+state.backlogNext);
+    state.backlog.push(...result.items);
+    state.backlogTotal=result.total;
+    state.backlogNext=result.nextOffset;
+    renderBacklog();message(null);
+  }catch(error){message(error);}finally{
+    state.busy=false;button.disabled=false;button.textContent="Scan next 40";
+  }
+}
 async function route(){
   const p=new URLSearchParams(location.search);
   const name=p.get("repo");
   const inbox=p.get("page")==="decisions";
+  const backlog=p.get("page")==="backlog";
   const v=p.get("view")==="execution"?"execution":"atlas";
   state.question=p.get("question");
-  $("#portfolio-page").hidden=Boolean(name||inbox);
+  $("#portfolio-page").hidden=Boolean(name||inbox||backlog);
   $("#repository-page").hidden=!name;
   $("#decisions-page").hidden=!inbox;
-  $("#nav-repos").classList.toggle("nav-active",!inbox);
+  $("#backlog-page").hidden=!backlog;
+  $("#nav-repos").classList.toggle("nav-active",!inbox&&!backlog);
   $("#nav-decisions").classList.toggle("nav-active",inbox);
+  $("#nav-backlog").classList.toggle("nav-active",backlog);
   if(inbox){await renderInbox();return;}
+  if(backlog){renderBacklog();if(!state.backlog.length)await scanBacklog();return;}
   if(!name){renderTable();return;}
   await loadRepository(name);
   if(!state.repo)return;
@@ -484,7 +527,10 @@ function bind(){
   $("#home-link").addEventListener("click",(e)=>{e.preventDefault();setRoute();});
   $("#back-to-repos").addEventListener("click",()=>setRoute());
   $("#nav-repos").addEventListener("click",()=>setRoute());
+  $("#nav-backlog").addEventListener("click",()=>setRoute({backlog:true}));
   $("#nav-decisions").addEventListener("click",()=>setRoute({inbox:true}));
+  $("#backlog-filter").addEventListener("change",(e)=>{state.backlogFilter=e.target.value;renderBacklog();});
+  $("#backlog-scan").addEventListener("click",()=>{void scanBacklog();});
   $("#repo-search").addEventListener("input",(e)=>{state.query=e.target.value;renderTable();});
   $("#period").addEventListener("change",(e)=>{state.period=e.target.value;renderTable();});
   $("#repo-sort").addEventListener("change",(e)=>{state.sort=e.target.value;renderTable();});
@@ -504,7 +550,8 @@ function bind(){
     if(next)setRoute({repo:next.repo,view:"atlas",question:next.id});
   });
   $("#refresh").addEventListener("click",async()=>{
-    try{await api("/api/refresh",{method:"POST",body:"{}"});$("#synced").textContent="Syncing GitHub…";}
+    try{await api("/api/refresh",{method:"POST",body:"{}"});$("#synced").textContent="Syncing GitHub…";
+      state.backlog=[];state.backlogNext=0;state.backlogTotal=null;}
     catch(error){message(error);}
   });
   $("#sign-in").addEventListener("click",()=>{location.href="/auth/login";});

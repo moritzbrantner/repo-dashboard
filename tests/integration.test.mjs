@@ -34,3 +34,40 @@ test("no GitHub work evidence does not mark ready fallback issues as active",asy
   assert.equal(view.nodes[0].active,false);
   assert.equal(view.nodes[0].activity,"ready-or-unknown");
 });
+
+test("backlog reconciliation uses native cross-repository blockers and explicit Atlas questions",async()=>{
+  const client=new PortfolioGitHubClient("fixture");
+  const issue=(number,body="")=>({id:"owner/main#"+number,repo:"owner/main",number,
+    title:"Task "+number,url:"https://github.com/owner/main/issues/"+number,
+    state:"open",questionRefs:body?["1.2"]:[]});
+  const repositories={main:{name:"main",issues:[issue(1),issue(2),issue(3,"Atlas 1.2")],
+    atlas:{entries:[{id:"1.2",kind:"question",resolved:false}]}},
+    parked:{archived:true,issues:[{...issue(4),id:"owner/parked#4"}]}};
+  client.request=async(path)=>{
+    if(path.includes("/issues/1/"))return [{id:45,number:5,
+      repository_url:"https://api.github.com/repos/owner/physics",state:"open",
+      html_url:"https://github.com/owner/physics/issues/5",title:"Prerequisite"}];
+    if(path.includes("/issues/2/"))return [];
+    if(path.includes("/issues/3/"))return [];
+    throw new Error("Unexpected endpoint: "+path);
+  };
+  const first=await client.reconcileBacklog(repositories,{offset:0,limit:2});
+  assert.equal(first.total,3);
+  assert.equal(first.nextOffset,2);
+  assert.equal(first.items[0].status,"blocked");
+  assert.equal(first.items[0].blockers[0].id,"owner/physics#5");
+  assert.equal(first.items[1].status,"ready");
+  const last=await client.reconcileBacklog(repositories,{offset:2,limit:2});
+  assert.equal(last.items[0].status,"blocked");
+  assert.deepEqual(last.items[0].questions,["1.2"]);
+  assert.equal(last.nextOffset,null);
+});
+
+test("failed dependency reads never make an issue ready",async()=>{
+  const client=new PortfolioGitHubClient("fixture");
+  client.request=async()=>{throw new Error("GitHub 403");};
+  const result=await client.reconcileBacklog({main:{issues:[{id:"owner/main#8",repo:"owner/main",
+    number:8,state:"open",questionRefs:[]}]}});
+  assert.equal(result.items[0].status,"unknown");
+  assert.match(result.items[0].error,/403/);
+});
