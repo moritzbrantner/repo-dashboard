@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { dirname, extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PortfolioGitHubClient } from "../lib/portfolio-github.mjs";
@@ -13,6 +13,12 @@ const mime={".html":"text/html; charset=utf-8",".css":"text/css; charset=utf-8",
   ".svg":"image/svg+xml"};
 
 const random=()=>randomBytes(32).toString("hex");
+const challenge=(verifier)=>createHash("sha256").update(verifier).digest("base64url");
+const validChallenge=(value)=>typeof value==="string"&&/^[A-Za-z0-9_-]{43}$/.test(value);
+const sameChallenge=(left,right)=>{
+  const a=Buffer.from(left),b=Buffer.from(right);
+  return a.length===b.length&&timingSafeEqual(a,b);
+};
 function cookies(request) {
   return Object.fromEntries(String(request.headers.cookie??"").split(";")
     .map((part)=>part.trim().split("=")).filter((pair)=>pair.length===2));
@@ -41,7 +47,14 @@ function cookie(name,value,secure=false,maxAge=0) {
 
 export function createPortfolioServer({store,owner,host="127.0.0.1",localToken=null,
   clientId=process.env.GITHUB_CLIENT_ID,clientSecret=process.env.GITHUB_CLIENT_SECRET,
-  publicUrl=process.env.PUBLIC_URL}={}) {
+  publicUrl=process.env.PUBLIC_URL,frontendUrl=process.env.FRONTEND_URL,
+  oauthExchange=async(code)=>{
+    const exchange=await fetch("https://github.com/login/oauth/access_token",{
+      method:"POST",headers:{Accept:"application/json","Content-Type":"application/json"},
+      body:JSON.stringify({client_id:clientId,client_secret:clientSecret,code})});
+    if(!exchange.ok)throw new Error("GitHub OAuth exchange failed.");
+    return exchange.json();
+  },clientFactory=(token)=>new PortfolioGitHubClient(token)}={}) {
   const loopback=["127.0.0.1","localhost","::1"].includes(host);
   const oauth=Boolean(clientId && clientSecret && publicUrl);
   const secure=Boolean(publicUrl?.startsWith("https://"));
@@ -51,8 +64,15 @@ export function createPortfolioServer({store,owner,host="127.0.0.1",localToken=n
   if (!loopback && (!oauth || !secure)) throw new Error("Remote hosting requires GitHub OAuth and PUBLIC_URL=https://...");
   const base=publicUrl?new URL(publicUrl):null;
   const origin=base?.origin ?? null;
+  const frontend=frontendUrl?new URL(frontendUrl):null;
+  if(frontend && (frontend.protocol!=="https:"||frontend.username||frontend.password||frontend.search||frontend.hash||
+    !frontend.pathname.endsWith("/")))
+    throw new Error("FRONTEND_URL must be a fixed HTTPS page URL ending in /, without credentials or query parameters.");
+  if(frontend && !oauth)throw new Error("Split frontend requires GitHub OAuth.");
+  const frontendOrigin=frontend?.origin??null;
   const sessions=new Map();
   const pending=new Map();
+  const tickets=new Map();
 
   const server=createServer(async(request,response)=>{
     response.setHeader("x-content-type-options","nosniff");
@@ -62,10 +82,29 @@ export function createPortfolioServer({store,owner,host="127.0.0.1",localToken=n
       const url=new URL(request.url,"http://localhost");
       const path=url.pathname;
       const values=cookies(request);
+      if(path==="/auth/login"){
+        for(const [key,value] of pending)if(value.expires<=Date.now())pending.delete(key);
+        for(const [key,value] of tickets)if(value.expires<=Date.now())tickets.delete(key);
+        for(const [key,value] of sessions)if(value.expires<=Date.now())sessions.delete(key);
+      }
+      const incoming=request.headers.origin;
+      if(frontendOrigin && incoming===frontendOrigin &&
+        (path.startsWith("/api/")||path==="/auth/exchange")){
+        response.setHeader("access-control-allow-origin",frontendOrigin);
+        response.setHeader("vary","Origin");
+        response.setHeader("access-control-allow-headers","Authorization, Content-Type");
+        response.setHeader("access-control-allow-methods","GET, POST, OPTIONS");
+      }
+      if(request.method==="OPTIONS" && (path.startsWith("/api/")||path==="/auth/exchange")){
+        response.writeHead(incoming===frontendOrigin&&frontendOrigin?204:403);
+        return response.end();
+      }
       if (path==="/auth/login" && request.method==="GET") {
         if (localToken) return writeRedirect(response,"/");
         const state=random();
-        pending.set(state,Date.now()+300_000);
+        const pkce=url.searchParams.get("challenge");
+        if(frontend && !validChallenge(pkce))return writeJson(response,400,{error:"Invalid login challenge."});
+        pending.set(state,{expires:Date.now()+300_000,pkce});
         const next=new URL("https://github.com/login/oauth/authorize");
         next.searchParams.set("client_id",clientId);
         next.searchParams.set("redirect_uri",base.origin+base.pathname.replace(/\/$/,"")+"/auth/callback");
@@ -75,25 +114,44 @@ export function createPortfolioServer({store,owner,host="127.0.0.1",localToken=n
       }
       if (path==="/auth/callback" && request.method==="GET" && oauth) {
         const state=url.searchParams.get("state");
-        const valid=state && state===values.portfolio_oauth && (pending.get(state)??0)>Date.now();
+        const record=pending.get(state);
+        const valid=record && state===values.portfolio_oauth && record.expires>Date.now();
         if (state) pending.delete(state);
         if (!valid || !url.searchParams.get("code")) return writeJson(response,403,{error:"Invalid OAuth state."});
-        const exchange=await fetch("https://github.com/login/oauth/access_token",{
-          method:"POST",headers:{Accept:"application/json","Content-Type":"application/json"},
-          body:JSON.stringify({client_id:clientId,client_secret:clientSecret,code:url.searchParams.get("code")})});
-        if (!exchange.ok) throw new Error("GitHub OAuth exchange failed.");
-        const grant=await exchange.json();
+        const grant=await oauthExchange(url.searchParams.get("code"));
         if (!grant.access_token) throw new Error("GitHub OAuth access denied.");
-        const client=new PortfolioGitHubClient(grant.access_token);
+        const client=clientFactory(grant.access_token);
         const viewer=await client.viewer();
         if (viewer.login?.toLowerCase()!==owner.toLowerCase()) return writeJson(response,403,{error:"GitHub account not authorized."});
         const session=random();
         sessions.set(session,{client,expires:Date.now()+12*3_600_000,login:viewer.login});
         store.client=client;
+        if(frontend){
+          const ticket=random();
+          tickets.set(ticket,{session,pkce:record.pkce,expires:Date.now()+60_000});
+          const destination=new URL(frontend);
+          destination.searchParams.set("ticket",ticket);
+          return writeRedirect(response,destination.href,cookie("portfolio_oauth","",secure,-1));
+        }
         return writeRedirect(response,"/",cookie("portfolio_session",session,secure,43200));
       }
 
-      const session=sessions.get(values.portfolio_session);
+      if(path==="/auth/exchange" && request.method==="POST" && frontend){
+        if(incoming!==frontendOrigin)return writeJson(response,403,{error:"Origin check failed."});
+        const body=await readJson(request);
+        if(!body||typeof body.ticket!=="string"||typeof body.verifier!=="string")
+          return writeJson(response,400,{error:"Invalid login exchange request."});
+        const record=tickets.get(body.ticket);
+        if(body.ticket)tickets.delete(body.ticket);
+        if(!record||record.expires<=Date.now()||body.verifier.length>256||
+          !sameChallenge(challenge(body.verifier),record.pkce))
+          return writeJson(response,403,{error:"Invalid or expired login ticket."});
+        return writeJson(response,200,{sessionToken:record.session});
+      }
+
+      const bearer=/^Bearer ([a-f0-9]{64})$/.exec(request.headers.authorization??"")?.[1];
+      const sessionKey=bearer??values.portfolio_session;
+      const session=sessions.get(sessionKey);
       const validSession=session?.expires>Date.now() ? session : null;
       const authenticated=Boolean(localToken || validSession);
       if (path==="/api/me" && request.method==="GET") {
@@ -104,8 +162,7 @@ export function createPortfolioServer({store,owner,host="127.0.0.1",localToken=n
         if (!authenticated) return writeJson(response,401,{error:"Sign in with your GitHub account."});
         if (!localToken) store.client=validSession.client;
         if (request.method!=="GET") {
-          const incoming=request.headers.origin;
-          const expected=origin??("http://"+request.headers.host);
+          const expected=bearer&&frontendOrigin?frontendOrigin:origin??("http://"+request.headers.host);
           if (!incoming || incoming!==expected) return writeJson(response,403,{error:"Origin check failed."});
         }
         if (path==="/api/portfolio" && request.method==="GET") {
@@ -123,8 +180,8 @@ export function createPortfolioServer({store,owner,host="127.0.0.1",localToken=n
           return writeJson(response,200,await store.backlog(Number(raw)));
         }
         if (path==="/api/logout" && request.method==="POST") {
-          if (values.portfolio_session) sessions.delete(values.portfolio_session);
-          response.setHeader("set-cookie",cookie("portfolio_session","",secure,-1)+"; Max-Age=0");
+          if (sessionKey) sessions.delete(sessionKey);
+          response.setHeader("set-cookie",cookie("portfolio_session","",secure,0)+"; Max-Age=0");
           return writeJson(response,200,{loggedOut:true});
         }
 
