@@ -3,7 +3,7 @@ import { layoutDag } from "./shared/portfolio.mjs";
 const $=(selector)=>document.querySelector(selector);
 const sessionKey="repo-dashboard-session";
 const verifierKey="repo-dashboard-login-verifier";
-const state={apiBase:"",portfolio:null,repo:null,detail:null,atlas:null,selected:null,question:null,
+const state={apiBase:"",publicMode:false,publicSnapshot:null,portfolio:null,repo:null,detail:null,atlas:null,selected:null,question:null,
   view:"atlas",period:"30",sort:"name",query:"",includeArchived:false,includeForks:false,
   filter:"all",openOnly:false,expanded:false,inbox:[],busy:false,
   backlog:[],backlogNext:0,backlogTotal:null,backlogFilter:"all"};
@@ -15,6 +15,26 @@ const node=(tag,cls,content)=>{
 };
 const text=(tag,content,cls)=>node(tag,cls,content);
 const api=async(path,options={})=>{
+  if(state.publicMode){
+    if(options.method&&options.method!=="GET")throw new Error("The public dashboard is read-only. Edit on GitHub or use the private backend.");
+    const snapshot=state.publicSnapshot;
+    if(path==="/api/me")return {authenticated:true,mode:"public"};
+    if(path==="/api/portfolio")return snapshot.portfolio;
+    if(path==="/api/decisions")return {questions:snapshot.decisions};
+    if(path.startsWith("/api/backlog?")){
+      const offset=Number(new URL(path,"https://dashboard.invalid").searchParams.get("offset")??0);
+      if(!Number.isSafeInteger(offset)||offset<0)throw new Error("Invalid backlog offset.");
+      const items=snapshot.backlog.items.slice(offset,offset+40);
+      return {total:snapshot.backlog.total,items,nextOffset:offset+items.length<snapshot.backlog.items.length?offset+items.length:null};
+    }
+    const match=/^\/api\/repositories\/([^/]+)(\/atlas)?$/.exec(path);
+    if(match){
+      const name=decodeURIComponent(match[1]);
+      const result=match[2]?snapshot.atlases[name]:snapshot.details[name];
+      if(result)return result;
+    }
+    throw new Error("Not available in the public snapshot.");
+  }
   const token=state.apiBase?sessionStorage.getItem(sessionKey):null;
   const response=await fetch(state.apiBase+path,{...options,headers:{
     "Content-Type":"application/json",...(token?{Authorization:"Bearer "+token}:{}),...options.headers}});
@@ -27,6 +47,15 @@ async function configureApi(){
   const response=await fetch("./config.json",{cache:"no-store"});
   if(!response.ok)return; // Local/same-origin mode has no static configuration file.
   const config=await response.json();
+  if(config.mode==="public"){
+    const data=await fetch("./public-data.json",{cache:"no-store"});
+    if(!data.ok)throw new Error("Public snapshot has not been published yet.");
+    const snapshot=await data.json();
+    if(snapshot.schemaVersion!==1||snapshot.mode!=="public")throw new Error("Unsupported public snapshot.");
+    state.publicSnapshot=snapshot;
+    state.publicMode=true;
+    return;
+  }
   const base=new URL(config.apiBase);
   if(base.protocol!=="https:"||base.pathname!=="/"||base.search||base.hash)
     throw new Error("Invalid private backend URL.");
@@ -86,7 +115,7 @@ function setRoute({repo=null,view=null,question=null,issue=null,inbox=false,back
   history.pushState(null,"",params.size?"?"+params.toString():location.pathname);
   void route();
 }
-function repoByName(name){return state.portfolio?.repositories.find((item)=>item.name===name);}
+function repoByName(name){return state.portfolio?.repositories.find((item)=>item.name===name||item.fullName===name);}
 function metric(repo,period=state.period){
   if(period==="all")return repo.summary?.doneTotal;
   const range=Number(period);
@@ -147,7 +176,8 @@ function renderTable(){
 
 async function loadPortfolio(){
   state.portfolio=await api("/api/portfolio");
-  $("#synced").textContent=state.portfolio.syncing?"Syncing GitHub…":
+  $("#synced").textContent=state.publicMode?"Public snapshot · "+new Date(state.portfolio.lastSynced).toLocaleString():
+    state.portfolio.syncing?"Syncing GitHub…":
     "Updated "+formatDate(state.portfolio.lastSynced);
   if(state.portfolio.error)message(state.portfolio.error);
   renderTable();
@@ -250,6 +280,14 @@ function renderAtlasEditor(entry){
   if(!entry){target.append(text("p","Select an entry in the tree.","muted"));return;}
   target.append(text("p","Decision Atlas "+entry.id,"eyebrow"),text("h2",entry.kind==="question"?"Unresolved question":entry.kind==="decision"?"Recorded decision":"Section"));
   const body=text("p",cleanMarkdown(entry.body),"decision-body");target.append(body);
+  if(state.publicMode){
+    const url="https://github.com/"+state.repo.fullName+"/blob/"+
+      encodeURIComponent(state.repo.defaultBranch??"main")+"/"+
+      (state.atlas.path??"").split("/").map(encodeURIComponent).join("/");
+    target.append(text("p","Public read-only view · record changes in the repository on GitHub.","muted"),
+      externalLink(url,"Open Decision Atlas on GitHub"));
+    return;
+  }
   if(entry.kind==="group") {
     const form=node("form","answer-form");
     form.append(text("label","Add an entry under section "+entry.id));
@@ -361,7 +399,7 @@ function renderPapyrus(){
       button.type="button";
       button.addEventListener("click",(event)=>{
         event.stopPropagation();
-        const repoName=item.repo.split("/")[1];
+        const repoName=state.publicMode?item.repo:item.repo.split("/")[1];
         if(repoByName(repoName))setRoute({repo:repoName,view:"atlas",question:openRefs[0]});
         else message("The referenced repository is not in this portfolio.");
       });
@@ -414,7 +452,7 @@ function renderInspector(){
     const row=node("div","dependency-row");
     const button=node("button",null,issueLabel(predecessor)+" · "+predecessor.title);
     button.addEventListener("click",()=>selectIssue(predecessor.id));row.append(button);
-    if(issue.repo===state.repo.fullName){
+    if(!state.publicMode&&issue.repo===state.repo.fullName){
       const remove=node("button","subtle-button","Remove");
       remove.addEventListener("click",()=>editDependency("remove",issue,predecessor.repo.split("/")[1],predecessor.number));
       row.append(remove);
@@ -434,14 +472,14 @@ function renderInspector(){
     for(const id of issue.questionRefs){
       const button=node("button","question-link","Question "+id+" ↗");
       button.addEventListener("click",()=>{
-        const repoName=issue.repo.split("/")[1];
+        const repoName=state.publicMode?issue.repo:issue.repo.split("/")[1];
         if(repoByName(repoName))setRoute({repo:repoName,view:"atlas",question:id});
         else message("The referenced repository is not in this portfolio.");
       });
       target.append(button);
     }
   }
-  if(issue.repo===state.repo.fullName && issue.state==="open"){
+  if(!state.publicMode&&issue.repo===state.repo.fullName && issue.state==="open"){
     const form=node("form","dependency-form");
     form.append(text("h3","Add native dependency"));
     const input=node("input");input.placeholder="repository#123 (or #123)";
@@ -494,7 +532,8 @@ async function renderInbox(){
 }
 function renderBacklog(){
   const shown=state.backlog.filter((item)=>state.backlogFilter==="all"||item.status===state.backlogFilter);
-  $("#backlog-count").textContent=state.backlog.length+" scanned of "+(state.backlogTotal??"?")+" open issues";
+  $("#backlog-count").textContent=state.backlog.length+" shown of "+(state.backlogTotal??"?")+" open issues"+
+    (state.publicMode&&state.publicSnapshot.backlog.partial?" (issue history partial)":"");
   $("#backlog-scan").hidden=state.backlogNext===null;
   const target=$("#backlog-rows");target.replaceChildren();
   for(const item of shown){
@@ -511,6 +550,37 @@ function renderBacklog(){
     if(item.questions?.length)blockers.append(text("span","Atlas "+item.questions.join(", "),"warning"));
     if(item.error)blockers.append(text("span",item.error,"warning"));
     if(!open.length&&!item.questions?.length&&!item.error)blockers.append(text("span","None","muted"));
+    if(state.publicMode){
+      const refresh=node("button","subtle-button","Check live");refresh.type="button";
+      refresh.title="Check this issue's public native GitHub blockers now (rate-limited)";
+      refresh.addEventListener("click",async()=>{
+        refresh.disabled=true;refresh.textContent="Checking…";
+        try{
+          const response=await fetch("https://api.github.com/repos/"+item.repo+
+            "/issues/"+item.number+"/dependencies/blocked_by?per_page=100",{
+            headers:{Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"},cache:"no-store"});
+          if(!response.ok)throw new Error("GitHub HTTP "+response.status+
+            (response.status===403?" (check API rate limits or access)":""));
+          const results=await response.json();
+          if(!Array.isArray(results)||results.length===100)throw new Error("GitHub dependency results incomplete");
+          const known=new Set(state.portfolio.repositories.map((repo)=>repo.fullName.toLowerCase()));
+          const normalized=results.map((other)=>{
+            const repo=other.repository_url?.match(/\/repos\/([^/]+\/[^/]+)$/)?.[1]??"";
+            return {repo,number:other.number,state:other.state,
+              url:"https://github.com/"+repo+"/issues/"+other.number};
+          });
+          if(normalized.some((other)=>!known.has(other.repo.toLowerCase())))throw new Error("A blocker is outside the public portfolio");
+          item.blockers=normalized;
+          const missingAtlas=item.error==="Decision Atlas reference unavailable";
+          item.error=missingAtlas?item.error:null;
+          item.status=missingAtlas?"unknown":normalized.some((other)=>other.state!=="closed")||
+            item.questions?.length?"blocked":"ready";
+          message(null);
+        }catch(error){item.status="unknown";item.error=error.message;message(error);}
+        finally{renderBacklog();}
+      });
+      blockers.append(refresh);
+    }
     row.append(blockers);target.append(row);
   }
   if(!shown.length){const row=node("tr");const cell=text("td","No matching scanned issues.","muted");cell.colSpan=3;row.append(cell);target.append(row);}
@@ -589,6 +659,7 @@ function bind(){
     if(next)setRoute({repo:next.repo,view:"atlas",question:next.id});
   });
   $("#refresh").addEventListener("click",async()=>{
+    if(state.publicMode){location.reload();return;}
     try{await api("/api/refresh",{method:"POST",body:"{}"});$("#synced").textContent="Syncing GitHub…";
       state.backlog=[];state.backlogNext=0;state.backlogTotal=null;}
     catch(error){message(error);}
@@ -604,10 +675,11 @@ async function main(){
   bind();
   try{
     await configureApi();
-    await completeLogin();
+    if(!state.publicMode)await completeLogin();
     const me=await api("/api/me");
-    $("#sign-in").hidden=me.authenticated;
-    $("#sign-out").hidden=!me.authenticated||me.mode==="local";
+    $("#sign-in").hidden=state.publicMode||me.authenticated;
+    $("#sign-out").hidden=state.publicMode||!me.authenticated||me.mode==="local";
+    if(state.publicMode)$("#refresh").title="Reload the latest published snapshot";
     if(!me.authenticated){
       $("#portfolio-rows").replaceChildren();
       $("#synced").textContent="Authentication required";
@@ -616,7 +688,7 @@ async function main(){
     }
     await loadPortfolio();
     await route();
-    setInterval(async()=>{
+    if(!state.publicMode)setInterval(async()=>{
       if(document.hidden)return;
       try {
         const previous=state.portfolio?.lastSynced;
@@ -626,8 +698,8 @@ async function main(){
     },15_000);
   }catch(error){
     message(error);
-    $("#sign-in").hidden=false;
-    $("#synced").textContent="Sign-in required";
+    $("#sign-in").hidden=state.publicMode;
+    $("#synced").textContent=state.publicMode?"Public snapshot unavailable":"Sign-in required";
   }
 }
 void main();

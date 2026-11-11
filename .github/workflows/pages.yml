@@ -1,4 +1,4 @@
-name: Publish dashboard frontend
+name: Publish public dashboard
 
 on:
   push:
@@ -6,10 +6,16 @@ on:
     paths:
       - 'site/**'
       - 'lib/portfolio.mjs'
+      - 'lib/public-snapshot.mjs'
+      - 'lib/portfolio-github.mjs'
+      - 'lib/github.mjs'
+      - 'config/public-owners.json'
       - 'scripts/build-pages.mjs'
       - 'package.json'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
 
 permissions:
   contents: read
@@ -22,7 +28,6 @@ concurrency:
 
 jobs:
   deploy:
-    if: vars.REPO_DASHBOARD_API_BASE_URL != ''
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -37,6 +42,8 @@ jobs:
       - run: npm run validate
       - run: npm run build:pages
         env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPO_DASHBOARD_MODE: ${{ vars.REPO_DASHBOARD_MODE || 'public' }}
           REPO_DASHBOARD_API_BASE_URL: ${{ vars.REPO_DASHBOARD_API_BASE_URL }}
       - uses: actions/upload-pages-artifact@v5
         with:
