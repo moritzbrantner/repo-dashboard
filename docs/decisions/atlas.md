@@ -41,3 +41,4 @@ Decisions are append-only: new decisions and consequential unresolved `[question
   - **4.2** [Q25 — A] The initial application is personal and private, with GitHub authentication and repository access controls.
   - **4.3** [Q26 — C] Deploy one self-hostable application locally or optionally in the cloud; do not maintain separate implementations.
   - **4.4** [Q27 — C] Open from cached data, refresh incrementally when accessed, and synchronize periodically while running. Show freshness and avoid redundant API requests.
+  - **4.5** [Owner decision — 2026-11-11] Host the static portfolio frontend on GitHub Pages and keep the authenticated Node backend on a separate HTTPS host. The public frontend is only a shell; no private GitHub data, token or derived snapshot may be published. Allow only the configured frontend origin and exchange OAuth credentials for a short-lived application session. Preserve local all-in-one hosting.

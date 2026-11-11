@@ -1,7 +1,9 @@
 import { layoutDag } from "./shared/portfolio.mjs";
 
 const $=(selector)=>document.querySelector(selector);
-const state={portfolio:null,repo:null,detail:null,atlas:null,selected:null,question:null,
+const sessionKey="repo-dashboard-session";
+const verifierKey="repo-dashboard-login-verifier";
+const state={apiBase:"",portfolio:null,repo:null,detail:null,atlas:null,selected:null,question:null,
   view:"atlas",period:"30",sort:"name",query:"",includeArchived:false,includeForks:false,
   filter:"all",openOnly:false,expanded:false,inbox:[],busy:false,
   backlog:[],backlogNext:0,backlogTotal:null,backlogFilter:"all"};
@@ -13,11 +15,48 @@ const node=(tag,cls,content)=>{
 };
 const text=(tag,content,cls)=>node(tag,cls,content);
 const api=async(path,options={})=>{
-  const response=await fetch(path,{headers:{"Content-Type":"application/json"},...options});
+  const token=state.apiBase?sessionStorage.getItem(sessionKey):null;
+  const response=await fetch(state.apiBase+path,{...options,headers:{
+    "Content-Type":"application/json",...(token?{Authorization:"Bearer "+token}:{}),...options.headers}});
   const result=await response.json();
+  if(response.status===401&&token)sessionStorage.removeItem(sessionKey);
   if(!response.ok)throw new Error(result.error??"Request failed");
   return result;
 };
+async function configureApi(){
+  const response=await fetch("./config.json",{cache:"no-store"});
+  if(!response.ok)return; // Local/same-origin mode has no static configuration file.
+  const config=await response.json();
+  const base=new URL(config.apiBase);
+  if(base.protocol!=="https:"||base.pathname!=="/"||base.search||base.hash)
+    throw new Error("Invalid private backend URL.");
+  state.apiBase=base.origin;
+}
+async function completeLogin(){
+  const params=new URLSearchParams(location.search);
+  const ticket=params.get("ticket");
+  if(!ticket)return;
+  params.delete("ticket");
+  history.replaceState(null,"",location.pathname+(params.size?"?"+params:"")+location.hash);
+  const verifier=sessionStorage.getItem(verifierKey);
+  sessionStorage.removeItem(verifierKey);
+  if(!state.apiBase||!verifier)throw new Error("Login session expired. Please sign in again.");
+  const response=await fetch(state.apiBase+"/auth/exchange",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ticket,verifier})});
+  if(!response.ok)throw new Error("Secure login exchange failed. Please sign in again.");
+  const data=await response.json();
+  if(!/^[a-f\d]{64}$/.test(data.sessionToken))throw new Error("Invalid login response.");
+  sessionStorage.setItem(sessionKey,data.sessionToken);
+}
+async function signIn(){
+  if(!state.apiBase){location.href="/auth/login";return;}
+  const bytes=crypto.getRandomValues(new Uint8Array(32));
+  const verifier=[...bytes].map((byte)=>byte.toString(16).padStart(2,"0")).join("");
+  sessionStorage.setItem(verifierKey,verifier);
+  const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(verifier)));
+  const challenge=btoa(String.fromCharCode(...digest)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+  location.assign(state.apiBase+"/auth/login?challenge="+encodeURIComponent(challenge));
+}
 function message(error) {
   const element=$("#message");
   element.hidden=!error;
@@ -554,13 +593,18 @@ function bind(){
       state.backlog=[];state.backlogNext=0;state.backlogTotal=null;}
     catch(error){message(error);}
   });
-  $("#sign-in").addEventListener("click",()=>{location.href="/auth/login";});
-  $("#sign-out").addEventListener("click",async()=>{await api("/api/logout",{method:"POST",body:"{}"});location.reload();});
+  $("#sign-in").addEventListener("click",()=>{void signIn().catch(message);});
+  $("#sign-out").addEventListener("click",async()=>{
+    try{await api("/api/logout",{method:"POST",body:"{}"});}catch(error){message(error);}
+    sessionStorage.removeItem(sessionKey);location.reload();
+  });
   window.addEventListener("popstate",()=>{void route().catch(message);});
 }
 async function main(){
   bind();
   try{
+    await configureApi();
+    await completeLogin();
     const me=await api("/api/me");
     $("#sign-in").hidden=me.authenticated;
     $("#sign-out").hidden=!me.authenticated||me.mode==="local";
@@ -580,6 +624,10 @@ async function main(){
         if(previous!==state.portfolio.lastSynced && new URLSearchParams(location.search).get("page")==="decisions")await renderInbox();
       }catch(error){message(error);}
     },15_000);
-  }catch(error){message(error);}
+  }catch(error){
+    message(error);
+    $("#sign-in").hidden=false;
+    $("#synced").textContent="Sign-in required";
+  }
 }
 void main();

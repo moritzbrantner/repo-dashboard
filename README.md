@@ -1,6 +1,6 @@
 # Development Portfolio (repo-dashboard)
 
-A private, self-hostable interface for GitHub portfolio progress, Decision Atlas steering, and native issue dependencies. Replaces the old public operational dashboard.
+A portfolio interface for GitHub progress, Decision Atlas steering, and native issue dependencies. The static shell can be hosted on GitHub Pages; all private data and write operations remain on the authenticated backend.
 
 Product decisions are recorded in [the owning Decision Atlas](docs/decisions/atlas.md). AI steering will reuse existing coding-agent workflows; it is not yet integrated into the application.
 
@@ -23,11 +23,18 @@ Open http://127.0.0.1:4173. The token must authenticate as the configured owner.
 
 A derived private cache is written to untracked data/portfolio.json with restrictive file permissions; remove it to rebuild from GitHub. First-time issue history collection may take time. Subsequent syncs use updated timestamps with overlap for idempotence.
 
-## Hosted deployment
+## GitHub Pages frontend + private HTTPS backend
 
-For GitHub OAuth, configure HOST, PORT, PUBLIC_URL (HTTPS URL), GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET. Configure the OAuth App callback as PUBLIC_URL/auth/callback. GitHub sign-in is restricted to the configured repository owner. Serve through an HTTPS reverse proxy and do not set GITHUB_TOKEN on a public interface. Session credentials remain in process memory and require re-login on restart. Mount data/ as private persistent storage for historical snapshots.
+The Pages site is a **public static shell**. Only `site/` and the browser-safe projection module `lib/portfolio.mjs` are built into `dist/`. Neither the GitHub OAuth secret nor `data/portfolio.json` is included. An authenticated backend is mandatory for the Pages site to function.
 
-The old GitHub Pages collector and deployment workflow has been removed. Do not deploy private portfolio data to public GitHub Pages.
+1. Point a DNS name (for example `dashboard-api.example.com`) to a machine with inbound TCP 80/443. This can be a private VPS or your own machine with a publicly reachable HTTPS endpoint. Configure a [GitHub OAuth App](https://github.com/settings/developers) with callback `https://dashboard-api.example.com/auth/callback`.
+2. Copy `.env.example` to `.env`, set `API_DOMAIN`, the exact `FRONTEND_URL`, and the OAuth client ID/secret. Keep `.env` untracked. Run `docker compose up -d --build`. Caddy obtains HTTPS certificates and proxies only the Node backend; the persistent `portfolio_data` volume holds private history. The OAuth connection must have access to the repositories you expect to see.
+3. In the `repo-dashboard` GitHub repository, set **Settings → Pages → Build and deployment → Source: GitHub Actions**. Set Actions repository variable `REPO_DASHBOARD_API_BASE_URL` to `https://dashboard-api.example.com`. Run the **Publish dashboard frontend** workflow (or push to main after configuring it).
+4. The workflow publishes `dist/` to the Pages address, normally `https://moritzbrantner.github.io/repo-dashboard/`. Use that **exact** URL for `FRONTEND_URL`, including its path and trailing slash. For stronger origin isolation, use a dedicated GitHub Pages custom domain and configure `FRONTEND_URL` to that domain instead.
+
+Login opens GitHub OAuth on the backend's HTTPS domain. After the backend verifies the authorized GitHub account, it redirects to Pages with a 60-second, one-use ticket. The browser proves possession of its original PKCE verifier to exchange the ticket for a 12-hour opaque application session stored in the tab's `sessionStorage`. GitHub access tokens and private caches never enter the Pages artifact or browser. Cross-origin API calls allow only `FRONTEND_URL`'s origin, and writes require an authenticated bearer session and exact Origin match. Sessions are held in backend memory and expire on restart.
+
+The backend also supports the original single-origin OAuth deployment and loopback-only `GITHUB_TOKEN` development mode. Do not set `GITHUB_TOKEN` on an internet-facing deployment. The public site cannot run coding agents locally in the browser; future agent-launch features require an explicitly configured trusted local runner.
 
 ## Evidence and current limits
 

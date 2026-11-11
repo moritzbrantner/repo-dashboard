@@ -8,7 +8,8 @@
   },
   "scripts": {
     "serve": "node scripts/serve.mjs",
+    "build:pages": "node scripts/build-pages.mjs",
     "test": "node --test",
-    "validate": "node --check site/app.js && node --check lib/github.mjs && node --check lib/portfolio.mjs && node --check lib/portfolio-github.mjs && node --check lib/portfolio-store.mjs && node --check scripts/serve.mjs && npm test"
+    "validate": "node --check site/app.js && node --check lib/github.mjs && node --check lib/portfolio.mjs && node --check lib/portfolio-github.mjs && node --check lib/portfolio-store.mjs && node --check scripts/serve.mjs && node --check scripts/build-pages.mjs && npm test"
   }
 }
