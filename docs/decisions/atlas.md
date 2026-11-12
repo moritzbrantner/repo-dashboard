@@ -1,6 +1,6 @@
 # Development Portfolio — Decision Atlas
 
-This is the authoritative product-decision record for `repo-dashboard`. It consolidates the owner's steering answers through Question 33. Each numbered leaf is a **Decision**; headings are navigation branches. The labels `Q1`–`Q32` refer to the original steering questions, not to Atlas IDs.
+This is the authoritative product-decision record for `repo-dashboard`. It consolidates the owner's steering answers through Question 33. Each numbered leaf is a **Decision**; headings are navigation branches. The labels `Q1`–`Q33` refer to the steering questions, not to Atlas IDs.
 
 Decisions are append-only: new decisions and consequential unresolved `[question]` leaves receive stable, unused child IDs. New answers append a Decision referring to the answered question; changes to established intent append a superseding Decision rather than silently rewriting old entries. GitHub issues own implementation and native dependencies; this Atlas owns product intent. Progress statistics are derived, not a second source of truth.
 
