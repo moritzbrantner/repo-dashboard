@@ -1,6 +1,6 @@
 # Development Portfolio — Decision Atlas
 
-This is the authoritative product-decision record for `repo-dashboard`. It consolidates the owner's steering answers through Question 32. Each numbered leaf is a **Decision**; headings are navigation branches. The labels `Q1`–`Q32` refer to the original steering questions, not to Atlas IDs.
+This is the authoritative product-decision record for `repo-dashboard`. It consolidates the owner's steering answers through Question 33. Each numbered leaf is a **Decision**; headings are navigation branches. The labels `Q1`–`Q32` refer to the original steering questions, not to Atlas IDs.
 
 Decisions are append-only: new decisions and consequential unresolved `[question]` leaves receive stable, unused child IDs. New answers append a Decision referring to the answered question; changes to established intent append a superseding Decision rather than silently rewriting old entries. GitHub issues own implementation and native dependencies; this Atlas owns product intent. Progress statistics are derived, not a second source of truth.
 
@@ -40,3 +40,4 @@ Decisions are append-only: new decisions and consequential unresolved `[question
   - **4.2** [Q25 — A] The initial application is personal and private, with GitHub authentication and repository access controls.
   - **4.3** [Q26 — C] Deploy one self-hostable application locally or optionally in the cloud; do not maintain separate implementations.
   - **4.4** [Q27 — C] Open from cached data, refresh incrementally when accessed, and synchronize periodically while running. Show freshness and avoid redundant API requests.
+  - **4.5** [Q33 — A, 2026-11-12] Host the optional authenticated private backend initially on the owner's Ubuntu machine. The public GitHub Pages portfolio stays independently available as read-only, without requiring that machine or backend to be online. Editing decisions, repository operations, and locally launched coding-agent steering require the private backend to be running; do not imply always-on availability. Preserve the existing single self-hostable application and its security boundaries: local token mode binds to loopback, remotely reachable access requires account-checked GitHub OAuth over HTTPS, and credentials remain on the backend. This choice does not authorize a VPS, cloud service, public write API, automatic startup, or remote agent runner.
