@@ -9,6 +9,7 @@ Product decisions are recorded in [the owning Decision Atlas](docs/decisions/atl
 1. Repository overview: a searchable, sortable table showing completed issues, 7/30/90-day trends, merged PRs, recorded decisions and open questions. Historical activity is absolute, never measured against an invented completion target.
 2. Decision Atlas: browse the owning repository's hierarchical Markdown, inspect existing answers, answer questions with descriptive decisions, and submit append-only updates as GitHub PRs. A cross-repository decision inbox collects unanswered questions and supports one-at-a-time review.
 3. Execution papyrus: horizontally scrolling, dependency-first DAG. Active GitHub issue evidence is centered, completed predecessors and future successors flank it, and independent work is collapsible. All edges use native GitHub issue dependencies, including cross-repository links. The UI can edit GitHub dependencies, but positioning is never a priority field.
+4. Dependency backlog: an on-demand, read-only portfolio scan of open issues in non-archived, non-fork repositories. Each 40-issue batch checks native GitHub `blocked_by` dependencies (including other repositories) and explicitly referenced unresolved Atlas questions. Issues are shown as ready, blocked or unknown; failed or incomplete dependency reads never imply readiness. Scanning is bounded and does not establish execution priority or edit issues.
 
 The dashboard reports no verification evidence where a repository has not published an authoritative acceptance signal. Live worker integrations and AI-generated new steering questions are deferred, not silently simulated.
 
@@ -38,5 +39,6 @@ The old GitHub Pages collector and deployment workflow has been removed. Do not 
 - Local derived snapshots record daily repository progress; missing historic blocker evidence is not reconstructed from guesses.
 - Free browsing and one-at-a-time review of recorded questions work without AI. AI-assisted question discovery will require an agent integration in a later slice.
 - No alternative dependency database, issue prioritization service, artificial deadlines, or additional validation pipelines.
+- The backlog scan is intentionally not exhaustive until all batches are requested. Its counts distinguish checked issues from the total open backlog. Refreshed GitHub history can change issue membership between batches; restart the scan after syncing.
 
 Run npm test and npm run validate before merging.

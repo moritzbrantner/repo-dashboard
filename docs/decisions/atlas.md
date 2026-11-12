@@ -27,6 +27,7 @@ Decisions are append-only: new decisions and consequential unresolved `[question
   - **2.9** [Q17 — C] Center the DAG on current work with immediate predecessors and successors; show disconnected, independent work in expandable groups rather than inventing edges.
   - **2.10** [Q18 — C] Classify apparent activity from GitHub evidence (linked open PRs, explicit in-progress state, recent activity), distinguishing signals from proof that a worker is active. Do not require live agent integration initially.
   - **2.11** [Q19 — A] GitHub issues explicitly reference the Decision Atlas questions blocking them. The Atlas owns the question and its answer; the issue owns the reference.
+  - **2.12** [Owner decision — 2026-11-11] Extend the portfolio into a deterministic issue/backlog reconciler: scan native cross-repository issue blockers and unresolved explicit Atlas question references, distinguish ready, blocked, and unknown, and keep scanning bounded and read-only. Do not infer links, rank issues, or automatically close them.
 - **3** Decision editing and steering
   - **3.1** [Q14 — C] Apply edits through each repository's established workflow, including PRs and merging when allowed. A decision remains pending until its authoritative repository update succeeds.
   - **3.2** [Q20 — C] Support quick A/B/C answering in the Atlas tree and a detail editor for longer answers, new questions, and structural changes, keeping the hierarchy visible.
